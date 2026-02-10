@@ -1,0 +1,18 @@
+# Oopsie - Configuración
+
+llm:
+  model: "moonshotai/kimi-k2.5"
+  base_url: "https://openrouter.ai/api/v1"
+  temperature: 0.7
+  max_tokens: 2048
+
+voice:
+  model_size: "small"  # tiny, base, small, medium, large
+  language: "es"
+
+interface:
+  server_name: "0.0.0.0"
+  server_port: 7860
+  theme: "dark"
+
+timezone: "Europe/Madrid"

@@ -1,0 +1,9 @@
+gradio
+faster-whisper
+openai
+notion-client
+mcp
+python-dotenv
+pyyaml
+dateparser
+langfuse
