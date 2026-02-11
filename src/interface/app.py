@@ -5,21 +5,19 @@ import gradio as gr
 from src.agent.core import OopsieAgent
 from src.voice.transcriber import Transcriber
 
+THEME = gr.themes.Soft(primary_hue="orange", neutral_hue="gray")
+
 
 def create_app(agent: OopsieAgent, transcriber: Transcriber | None = None,
                server_name: str = "0.0.0.0", server_port: int = 7860) -> gr.Blocks:
     """Create and return the Gradio app (without launching it)."""
 
-    with gr.Blocks(
-        title="Oopsie",
-        theme=gr.themes.Soft(primary_hue="orange", neutral_hue="gray"),
-    ) as app:
+    with gr.Blocks(title="Oopsie") as app:
         gr.Markdown("## 🐣 Oopsie")
         gr.Markdown("Tu asistente personal de tareas")
 
         chatbot = gr.Chatbot(
             value=[{"role": "assistant", "content": "¡Hola! Soy Oopsie, tu asistente de tareas. ¿En qué te ayudo?"}],
-            type="messages",
             height=450,
         )
 

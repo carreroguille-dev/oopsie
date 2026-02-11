@@ -1,7 +1,15 @@
-"""Notion service layer — wraps notion-client SDK for Oopsie domain operations."""
+"""Notion service layer — wraps notion-client SDK for Oopsie domain operations.
+
+IMPORTANT: We pin notion_version='2022-06-28' because the default version
+in notion-client 2.7.0 (2025-09-03) does NOT return database properties
+and silently ignores property updates. The 2022-06-28 API is the stable
+version where database properties work correctly.
+"""
 
 from notion_client import Client
-from notion_client.errors import APIResponseError
+
+# Stable API version that supports database properties
+NOTION_API_VERSION = "2022-06-28"
 
 # Schema constants matching SCHEMA.md
 TASK_DB_PROPERTIES = {
@@ -34,7 +42,7 @@ TASK_DB_PROPERTIES = {
 
 class NotionService:
     def __init__(self, api_key: str, root_page_id: str):
-        self.client = Client(auth=api_key)
+        self.client = Client(auth=api_key, notion_version=NOTION_API_VERSION)
         self.root_page_id = root_page_id
 
     # --- Spaces (each space = a database under the root page) ---
@@ -52,26 +60,66 @@ class NotionService:
         return spaces
 
     def create_space(self, name: str, icon: str = "📁") -> dict:
-        """Create a new space (database with task schema) under the root page."""
-        db = self.client.databases.create(
-            parent={"type": "page_id", "page_id": self.root_page_id},
-            title=[{"type": "text", "text": {"content": name}}],
-            icon={"type": "emoji", "emoji": icon},
-            properties=TASK_DB_PROPERTIES,
+        """Create a new space (database with task schema) under the root page.
+
+        Uses client.request() because the high-level databases.create()
+        strips the properties kwarg from the request body.
+        """
+        db = self.client.request(
+            path="databases",
+            method="POST",
+            body={
+                "parent": {"type": "page_id", "page_id": self.root_page_id},
+                "title": [{"type": "text", "text": {"content": name}}],
+                "icon": {"type": "emoji", "emoji": icon},
+                "properties": TASK_DB_PROPERTIES,
+            },
         )
         return {"id": db["id"], "name": name}
+
+    def ensure_space_properties(self, space_id: str) -> None:
+        """Ensure a database has all required task properties.
+
+        Fixes databases that were created under the broken 2025-09-03 API
+        which silently ignored properties. Also renames the default 'Name'
+        title property to 'Título' if needed.
+        """
+        db = self.client.databases.retrieve(space_id)
+        existing = db.get("properties", {})
+        existing_names = set(existing.keys())
+
+        updates = {}
+
+        # Rename default "Name" title property to "Título"
+        if "Name" in existing_names and "Título" not in existing_names:
+            updates["Name"] = {"name": "Título", "title": {}}
+
+        # Add all other missing non-title properties
+        for prop_name, prop_schema in TASK_DB_PROPERTIES.items():
+            if prop_name not in existing_names and prop_name != "Título":
+                updates[prop_name] = prop_schema
+
+        if updates:
+            self.client.databases.update(
+                database_id=space_id, properties=updates
+            )
 
     # --- Tasks (entries in a space database) ---
 
     def get_tasks(self, space_id: str, status: str | None = None) -> list[dict]:
-        """Get tasks from a space, optionally filtered by status."""
-        filter_obj = None
-        if status:
-            filter_obj = {"property": "Estado", "select": {"equals": status}}
+        """Get tasks from a space, optionally filtered by status.
 
-        response = self.client.databases.query(
-            database_id=space_id,
-            filter=filter_obj,
+        Uses client.request() because databases.query() doesn't exist in
+        notion-client 2.7.0.
+        """
+        body = {}
+        if status:
+            body["filter"] = {"property": "Estado", "select": {"equals": status}}
+
+        response = self.client.request(
+            path=f"databases/{space_id}/query",
+            method="POST",
+            body=body,
         )
         return [self._parse_task(page) for page in response["results"]]
 

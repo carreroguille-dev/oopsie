@@ -1,5 +1,6 @@
 """OopsieAgent — LangGraph ReAct agent."""
 
+import os
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -20,6 +21,17 @@ def _build_system_prompt() -> str:
     return template.format(current_date=today)
 
 
+def _get_langfuse_handler():
+    """Return Langfuse callback handler if keys are configured, else None."""
+    if os.getenv("LANGFUSE_SECRET_KEY") and os.getenv("LANGFUSE_PUBLIC_KEY"):
+        try:
+            from langfuse.langchain import CallbackHandler
+            return CallbackHandler()
+        except Exception:
+            pass
+    return None
+
+
 class OopsieAgent:
     def __init__(self, model: str, api_key: str, base_url: str,
                  temperature: float = 0.7, max_tokens: int = 2048):
@@ -35,14 +47,18 @@ class OopsieAgent:
             model=llm,
             tools=ALL_TOOLS,
             checkpointer=MemorySaver(),
-            state_modifier=_build_system_prompt(),
+            prompt=_build_system_prompt(),
         )
 
         self._thread_id = str(uuid.uuid4())
+        self._langfuse = _get_langfuse_handler()
 
     def process_message(self, user_message: str) -> str:
         """Process a user message. Returns the final text response."""
         config = {"configurable": {"thread_id": self._thread_id}}
+        if self._langfuse:
+            config["callbacks"] = [self._langfuse]
+
         result = self.graph.invoke(
             {"messages": [("user", user_message)]},
             config=config,

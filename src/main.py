@@ -1,5 +1,8 @@
 """Entry point for Oopsie."""
 
+import os
+os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
+
 from src.utils.config import load_config
 from src.notion.client import NotionService
 from src.agent.tools.definitions import set_notion_service
@@ -17,6 +20,14 @@ def main():
         root_page_id=config["notion"]["root_page_id"],
     )
     set_notion_service(notion)
+
+    # Fix existing databases that may be missing properties
+    try:
+        for space in notion.list_spaces():
+            notion.ensure_space_properties(space["id"])
+        print("Notion spaces verified.")
+    except Exception as e:
+        print(f"Warning: could not verify space properties: {e}")
 
     # Agent (LLM + LangGraph)
     llm_cfg = config["llm"]
@@ -42,9 +53,11 @@ def main():
     # Interface
     ui_cfg = config.get("interface", {})
     app = create_app(agent, transcriber)
+    from src.interface.app import THEME
     app.launch(
         server_name=ui_cfg.get("server_name", "0.0.0.0"),
         server_port=ui_cfg.get("server_port", 7860),
+        theme=THEME,
     )
 
 
