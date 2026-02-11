@@ -106,15 +106,34 @@ class NotionService:
 
     # --- Tasks (entries in a space database) ---
 
-    def get_tasks(self, space_id: str, status: str | None = None) -> list[dict]:
-        """Get tasks from a space, optionally filtered by status.
+    def get_tasks(self, space_id: str, status: str | None = None,
+                  fecha_inicio: str | None = None,
+                  fecha_fin: str | None = None) -> list[dict]:
+        """Get tasks from a space, optionally filtered by status and/or date range.
 
         Uses client.request() because databases.query() doesn't exist in
         notion-client 2.7.0.
+
+        Args:
+            space_id: Database UUID.
+            status: Filter by status value (e.g. "Pendiente").
+            fecha_inicio: Start date (YYYY-MM-DD). Only tasks on or after this date.
+            fecha_fin: End date (YYYY-MM-DD). Only tasks on or before this date.
         """
-        body = {}
+        filters: list[dict] = []
+
         if status:
-            body["filter"] = {"property": "Estado", "select": {"equals": status}}
+            filters.append({"property": "Estado", "select": {"equals": status}})
+        if fecha_inicio:
+            filters.append({"property": "Fecha de vencimiento", "date": {"on_or_after": fecha_inicio}})
+        if fecha_fin:
+            filters.append({"property": "Fecha de vencimiento", "date": {"on_or_before": fecha_fin}})
+
+        body = {}
+        if len(filters) == 1:
+            body["filter"] = filters[0]
+        elif len(filters) > 1:
+            body["filter"] = {"and": filters}
 
         response = self.client.request(
             path=f"databases/{space_id}/query",
@@ -204,10 +223,18 @@ class NotionService:
         return {
             "id": page["id"],
             "title": title_list[0]["text"]["content"] if title_list else "",
-            "due_date": date_obj["start"] if date_obj else None,
+            "due_date": self._format_date(date_obj["start"]) if date_obj else None,
             "status": status_obj["name"] if status_obj else "Pendiente",
             "priority": priority_obj["name"] if priority_obj else "Media",
             "tags": [t["name"] for t in tags_list],
             "notes": notes_list[0]["text"]["content"] if notes_list else "",
             "url": url_val,
         }
+
+    @staticmethod
+    def _format_date(iso_date: str) -> str:
+        """Convert YYYY-MM-DD to DD/MM/YYYY for display."""
+        parts = iso_date.split("-")
+        if len(parts) == 3:
+            return f"{parts[2]}/{parts[1]}/{parts[0]}"
+        return iso_date

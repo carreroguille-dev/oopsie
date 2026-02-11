@@ -65,15 +65,24 @@ def create_space(name: str, icon: str = "📁") -> str:
 
 
 @tool
-def get_tasks(space_id: str, status: str | None = None) -> str:
-    """Obtiene las tareas de un espacio. IMPORTANTE: el space_id debe ser un UUID real obtenido de list_spaces. NO inventes IDs. Devuelve JSON con lista de tareas.
+def get_tasks(space_id: str, status: str | None = None,
+              fecha_inicio: str | None = None,
+              fecha_fin: str | None = None) -> str:
+    """Obtiene las tareas de un espacio, con filtros opcionales por estado y/o rango de fechas. IMPORTANTE: el space_id debe ser un UUID real obtenido de list_spaces. NO inventes IDs. Devuelve JSON con lista de tareas.
+
+    Cuando el usuario pide "tareas de esta semana", calcula el lunes y domingo de la semana actual y pásalos como fecha_inicio y fecha_fin.
 
     Args:
         space_id: UUID del espacio. DEBE obtenerse llamando a list_spaces primero.
         status: Filtro opcional. Valores EXACTOS: "Pendiente", "En progreso", "Completada".
+        fecha_inicio: Fecha inicio del rango en formato YYYY-MM-DD. Solo devuelve tareas con fecha de vencimiento >= esta fecha.
+        fecha_fin: Fecha fin del rango en formato YYYY-MM-DD. Solo devuelve tareas con fecha de vencimiento <= esta fecha.
     """
     try:
-        tasks = _get_notion().get_tasks(space_id=space_id, status=status)
+        tasks = _get_notion().get_tasks(
+            space_id=space_id, status=status,
+            fecha_inicio=fecha_inicio, fecha_fin=fecha_fin,
+        )
         return json.dumps({"tasks": tasks}, ensure_ascii=False)
     except Exception as e:
         return json.dumps({"error": str(e)}, ensure_ascii=False)

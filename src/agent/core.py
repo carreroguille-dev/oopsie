@@ -5,6 +5,7 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
+from langchain_core.messages import AIMessage
 from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.prebuilt import create_react_agent
@@ -63,7 +64,21 @@ class OopsieAgent:
             {"messages": [("user", user_message)]},
             config=config,
         )
-        return result["messages"][-1].content
+        return self._extract_response(result["messages"])
+
+    @staticmethod
+    def _extract_response(messages: list) -> str:
+        """Extract the final text response from the message list.
+
+        Some models (e.g. Kimi K2.5 via OpenRouter) put the text response
+        in the same AIMessage that contains tool_calls, then return empty
+        content on the follow-up call. Walk the messages in reverse to find
+        the last AIMessage with actual text content.
+        """
+        for msg in reversed(messages):
+            if isinstance(msg, AIMessage) and msg.content and msg.content.strip():
+                return msg.content
+        return "No pude generar una respuesta. Intenta de nuevo."
 
     def reset(self):
         """Start a new conversation by switching thread ID."""
