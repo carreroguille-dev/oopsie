@@ -7,7 +7,7 @@ llm:
   max_tokens: 2048
 
 voice:
-  model_size: "small"  # tiny, base, small, medium, large
+  model_size: "small"  
   language: "es"
 
 interface:

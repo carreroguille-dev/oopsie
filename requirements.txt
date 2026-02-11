@@ -1,8 +1,10 @@
 gradio
 faster-whisper
+langchain
+langgraph
+langchain-openai
 openai
 notion-client
-mcp
 python-dotenv
 pyyaml
 dateparser
