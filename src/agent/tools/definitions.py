@@ -1,11 +1,3 @@
-"""LangChain tool definitions for the Oopsie agent.
-
-Each @tool function IS both the schema (via type hints + docstring)
-and the executor (calls NotionService directly).
-
-NotionService is injected via `set_notion_service()` at startup.
-"""
-
 from __future__ import annotations
 
 import json
@@ -14,7 +6,6 @@ from langchain_core.tools import tool
 
 from src.notion.client import NotionService
 
-# Module-level service reference, set at startup
 _notion: NotionService | None = None
 
 
@@ -41,7 +32,6 @@ def _safe(fn, *args, **kwargs) -> str:
 
 
 # --- Tools ---
-
 
 @tool
 def list_spaces() -> str:

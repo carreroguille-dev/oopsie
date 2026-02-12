@@ -8,7 +8,7 @@ from src.notion.client import NotionService
 from src.agent.tools.definitions import set_notion_service
 from src.agent.core import OopsieAgent
 from src.voice.transcriber import Transcriber
-from src.interface.app import create_app
+from src.interface.bot import create_bot
 
 
 def main():
@@ -50,15 +50,11 @@ def main():
     except Exception as e:
         print(f"Voice disabled: {e}")
 
-    # Interface
-    ui_cfg = config.get("interface", {})
-    app = create_app(agent, transcriber)
-    from src.interface.app import THEME
-    app.launch(
-        server_name=ui_cfg.get("server_name", "0.0.0.0"),
-        server_port=ui_cfg.get("server_port", 7860),
-        theme=THEME,
-    )
+    # Telegram bot
+    tg_cfg = config["telegram"]
+    app = create_bot(agent, transcriber, tg_cfg["bot_token"], tg_cfg["user_id"])
+    print("Oopsie bot started. Polling for messages...")
+    app.run_polling()
 
 
 if __name__ == "__main__":

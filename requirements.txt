@@ -1,4 +1,4 @@
-gradio
+python-telegram-bot
 faster-whisper
 langchain
 langgraph

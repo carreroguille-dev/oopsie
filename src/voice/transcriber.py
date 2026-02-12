@@ -1,5 +1,3 @@
-"""Speech-to-text using Faster-Whisper."""
-
 from faster_whisper import WhisperModel
 
 

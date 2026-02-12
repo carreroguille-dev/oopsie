@@ -29,6 +29,10 @@ def load_config() -> dict:
     config["openrouter"] = {
         "api_key": os.getenv("OPENROUTER_API_KEY", ""),
     }
+    config["telegram"] = {
+        "bot_token": os.getenv("TELEGRAM_BOT_TOKEN", ""),
+        "user_id": int(os.getenv("TELEGRAM_USER_ID", "0")),
+    }
     config["langfuse"] = {
         "secret_key": os.getenv("LANGFUSE_SECRET_KEY", ""),
         "public_key": os.getenv("LANGFUSE_PUBLIC_KEY", ""),
