@@ -31,6 +31,7 @@ def main():
 
     # Agent (LLM + LangGraph)
     llm_cfg = config["llm"]
+
     agent = OopsieAgent(
         model=llm_cfg["model"],
         api_key=config["openrouter"]["api_key"],

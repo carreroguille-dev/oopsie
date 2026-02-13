@@ -6,7 +6,7 @@ from functools import wraps
 from pathlib import Path
 
 from telegram import Update
-from telegram.constants import ChatAction, ChatType
+from telegram.constants import ChatAction, ChatType, ParseMode
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -38,9 +38,17 @@ def _authorized_only(allowed_user_id: int):
 
 
 async def _send_long_message(update: Update, text: str) -> None:
-    """Send a message, splitting into chunks if it exceeds Telegram's limit."""
+    """Send a message, splitting into chunks if it exceeds Telegram's limit.
+
+    Tries Markdown parse mode first; falls back to plain text if Telegram
+    rejects the markup (unmatched delimiters, unsupported syntax, etc.).
+    """
     for i in range(0, len(text), MAX_MESSAGE_LENGTH):
-        await update.message.reply_text(text[i:i + MAX_MESSAGE_LENGTH])
+        chunk = text[i:i + MAX_MESSAGE_LENGTH]
+        try:
+            await update.message.reply_text(chunk, parse_mode=ParseMode.MARKDOWN)
+        except Exception:
+            await update.message.reply_text(chunk)
 
 
 def create_bot(
@@ -55,6 +63,7 @@ def create_bot(
 
     @auth
     async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        agent.reset()
         await update.message.reply_text(
             "¡Hola! Soy Oopsie, tu asistente de tareas. ¿En qué te ayudo?"
         )

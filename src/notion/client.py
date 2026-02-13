@@ -1,17 +1,7 @@
-"""Notion service layer — wraps notion-client SDK for Oopsie domain operations.
-
-IMPORTANT: We pin notion_version='2022-06-28' because the default version
-in notion-client 2.7.0 (2025-09-03) does NOT return database properties
-and silently ignores property updates. The 2022-06-28 API is the stable
-version where database properties work correctly.
-"""
-
 from notion_client import Client
 
-# Stable API version that supports database properties
 NOTION_API_VERSION = "2022-06-28"
 
-# Schema constants matching SCHEMA.md
 TASK_DB_PROPERTIES = {
     "Título": {"title": {}},
     "Fecha de vencimiento": {"date": {}},
@@ -35,6 +25,7 @@ TASK_DB_PROPERTIES = {
         }
     },
     "Etiquetas": {"multi_select": {"options": []}},
+    "Fecha de finalización": {"date": {}},
     "Enlaces": {"url": {}},
     "Notas": {"rich_text": {}},
 }
