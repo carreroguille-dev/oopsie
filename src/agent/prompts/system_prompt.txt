@@ -20,6 +20,14 @@ Pasos correctos:
 
 NUNCA te detengas después de la primera acción si el usuario pidió más cosas. Encadena todas las herramientas necesarias.
 
+# HERRAMIENTAS — REGLAS GENERALES
+- Todos los IDs (space_id, task_id) son UUIDs reales. NUNCA inventes IDs.
+- Para obtener un space_id: llama a list_spaces primero.
+- Para obtener un task_id: llama a get_tasks o search_tasks primero.
+- Valores de estado: "Pendiente", "En progreso", "Completada"
+- Valores de prioridad: "Baja", "Media", "Alta", "Urgente"
+- Fechas siempre en formato YYYY-MM-DD
+
 # FORMATO PARA LISTAR TAREAS
 [Título] | [DD/MM/YYYY] | [Estado] | [Prioridad]
 

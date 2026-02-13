@@ -1,5 +1,6 @@
 """Entry point for Oopsie."""
 
+import logging
 import os
 os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
 
@@ -10,35 +11,63 @@ from src.agent.core import OopsieAgent
 from src.voice.transcriber import Transcriber
 from src.interface.bot import create_bot
 
+logger = logging.getLogger(__name__)
+
 
 def main():
-    config = load_config()
+    # Configure root logger
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+
+    logger.info("Starting Oopsie application")
+
+    try:
+        config = load_config()
+        logger.info("Configuration loaded successfully")
+    except Exception as e:
+        logger.critical("Failed to load configuration", exc_info=True)
+        raise
 
     # Notion — inject into tools module
-    notion = NotionService(
-        api_key=config["notion"]["api_key"],
-        root_page_id=config["notion"]["root_page_id"],
-    )
-    set_notion_service(notion)
+    try:
+        notion = NotionService(
+            api_key=config["notion"]["api_key"],
+            root_page_id=config["notion"]["root_page_id"],
+        )
+        set_notion_service(notion)
+        logger.info("Notion service initialized with root_page_id=%s", config["notion"]["root_page_id"][:8] + "...")
+    except Exception as e:
+        logger.critical("Failed to initialize Notion service", exc_info=True)
+        raise
 
     # Fix existing databases that may be missing properties
     try:
-        for space in notion.list_spaces():
+        spaces = notion.list_spaces()
+        logger.info("Found %d existing space(s)", len(spaces))
+        for space in spaces:
             notion.ensure_space_properties(space["id"])
-        print("Notion spaces verified.")
+        logger.info("Notion spaces verified successfully")
     except Exception as e:
-        print(f"Warning: could not verify space properties: {e}")
+        logger.warning("Could not verify space properties: %s", e)
 
     # Agent (LLM + LangGraph)
     llm_cfg = config["llm"]
-
-    agent = OopsieAgent(
-        model=llm_cfg["model"],
-        api_key=config["openrouter"]["api_key"],
-        base_url=llm_cfg["base_url"],
-        temperature=llm_cfg["temperature"],
-        max_tokens=llm_cfg["max_tokens"],
-    )
+    try:
+        agent = OopsieAgent(
+            model=llm_cfg["model"],
+            api_key=config["openrouter"]["api_key"],
+            base_url=llm_cfg["base_url"],
+            temperature=llm_cfg["temperature"],
+            max_tokens=llm_cfg["max_tokens"],
+        )
+        logger.info("Agent initialized with model=%s, temperature=%.2f, max_tokens=%d",
+                   llm_cfg["model"], llm_cfg["temperature"], llm_cfg["max_tokens"])
+    except Exception as e:
+        logger.critical("Failed to initialize agent", exc_info=True)
+        raise
 
     # Voice (optional — skip if faster-whisper fails to load)
     transcriber = None
@@ -48,14 +77,23 @@ def main():
             model_size=voice_cfg.get("model_size", "small"),
             language=voice_cfg.get("language", "es"),
         )
+        logger.info("Voice transcriber initialized with model_size=%s, language=%s",
+                   voice_cfg.get("model_size", "small"), voice_cfg.get("language", "es"))
     except Exception as e:
-        print(f"Voice disabled: {e}")
+        logger.warning("Voice transcription disabled: %s", e)
 
     # Telegram bot
-    tg_cfg = config["telegram"]
-    app = create_bot(agent, transcriber, tg_cfg["bot_token"], tg_cfg["user_id"])
-    print("Oopsie bot started. Polling for messages...")
-    app.run_polling()
+    try:
+        tg_cfg = config["telegram"]
+        app = create_bot(agent, transcriber, tg_cfg["bot_token"], tg_cfg["user_id"])
+        logger.info("Telegram bot created for user_id=%s", tg_cfg["user_id"])
+        logger.info("Oopsie bot started successfully. Polling for messages...")
+        app.run_polling()
+    except KeyboardInterrupt:
+        logger.info("Bot stopped by user")
+    except Exception as e:
+        logger.critical("Failed to start or run Telegram bot", exc_info=True)
+        raise
 
 
 if __name__ == "__main__":

@@ -28,6 +28,9 @@ def _build_system_prompt() -> str:
 class OopsieAgent:
     def __init__(self, model: str, api_key: str, base_url: str,
                  temperature: float = 0.7, max_tokens: int = 2048, user_id: str = None):
+        logger.info("Initializing OopsieAgent with model=%s, base_url=%s, temperature=%.2f, max_tokens=%d",
+                   model, base_url, temperature, max_tokens)
+
         llm = ChatOpenAI(
             model=model,
             api_key=api_key,
@@ -48,6 +51,9 @@ class OopsieAgent:
         self._user_id = user_id
         self._model = model
         self._langfuse_enabled = self._check_langfuse()
+
+        logger.info("OopsieAgent initialized with thread_id=%s, session_id=%s",
+                   self._thread_id, self._session_id)
 
     def _check_langfuse(self) -> bool:
         """Verify Langfuse is available and credentials are set."""
@@ -97,20 +103,28 @@ class OopsieAgent:
 
     def process_message(self, user_message: str) -> str:
         """Process a user message. Returns the final text response."""
+        logger.debug("Processing message (length=%d chars)", len(user_message))
+
         config = {"configurable": {"thread_id": self._thread_id}}
 
         handler = self._create_langfuse_handler()
         if handler:
             config["callbacks"] = [handler]
             config["metadata"] = self._langfuse_metadata()
+            logger.debug("Langfuse handler attached to request")
 
-        result = self.graph.invoke(
-            {"messages": [("user", user_message)]},
-            config=config,
-        )
-        response = self._extract_response(result["messages"])
-        self._trim_history(config, result["messages"])
-        return response
+        try:
+            result = self.graph.invoke(
+                {"messages": [("user", user_message)]},
+                config=config,
+            )
+            response = self._extract_response(result["messages"])
+            self._trim_history(config, result["messages"])
+            logger.info("Message processed successfully, response length=%d chars", len(response))
+            return response
+        except Exception as e:
+            logger.error("Failed to process message", exc_info=True)
+            raise
 
     def _trim_history(self, config: dict, messages: list) -> None:
         """Trim conversation history to the last MAX_HISTORY_MESSAGES.
@@ -129,6 +143,7 @@ class OopsieAgent:
 
         removals = [RemoveMessage(id=m.id) for m in to_drop]
         self.graph.update_state(config, {"messages": removals})
+        logger.debug("Trimmed %d message(s) from history", len(to_drop))
 
     @staticmethod
     def _extract_response(messages: list) -> str:
@@ -145,8 +160,11 @@ class OopsieAgent:
 
     def reset(self):
         """Start a new conversation by switching thread ID and session."""
+        old_thread = self._thread_id
         self._thread_id = str(uuid.uuid4())
         self._session_id = f"session-{uuid.uuid4()}"
+        logger.info("Conversation reset: old_thread=%s, new_thread=%s, new_session=%s",
+                   old_thread, self._thread_id, self._session_id)
 
     @property
     def session_id(self) -> str:
@@ -160,4 +178,5 @@ class OopsieAgent:
     
     def set_user_id(self, user_id: str):
         """Update user ID for tracking."""
+        logger.debug("User ID updated to: %s", user_id)
         self._user_id = user_id

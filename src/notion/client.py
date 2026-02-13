@@ -1,4 +1,8 @@
+import logging
+
 from notion_client import Client
+
+logger = logging.getLogger(__name__)
 
 NOTION_API_VERSION = "2022-06-28"
 
@@ -33,22 +37,31 @@ TASK_DB_PROPERTIES = {
 
 class NotionService:
     def __init__(self, api_key: str, root_page_id: str):
+        logger.info("Initializing NotionService with root_page_id=%s, api_version=%s",
+                   root_page_id[:8] + "...", NOTION_API_VERSION)
         self.client = Client(auth=api_key, notion_version=NOTION_API_VERSION)
         self.root_page_id = root_page_id
+        logger.info("NotionService initialized successfully")
 
     # --- Spaces (each space = a database under the root page) ---
 
     def list_spaces(self) -> list[dict]:
         """List all space databases under the root page."""
-        children = self.client.blocks.children.list(self.root_page_id)
-        spaces = []
-        for block in children["results"]:
-            if block["type"] == "child_database":
-                spaces.append({
-                    "id": block["id"],
-                    "name": block["child_database"]["title"],
-                })
-        return spaces
+        logger.debug("Fetching spaces from root_page_id=%s", self.root_page_id[:8] + "...")
+        try:
+            children = self.client.blocks.children.list(self.root_page_id)
+            spaces = []
+            for block in children["results"]:
+                if block["type"] == "child_database":
+                    spaces.append({
+                        "id": block["id"],
+                        "name": block["child_database"]["title"],
+                    })
+            logger.info("Found %d space(s)", len(spaces))
+            return spaces
+        except Exception as e:
+            logger.error("Failed to list spaces: %s", e, exc_info=True)
+            raise
 
     def create_space(self, name: str, icon: str = "📁") -> dict:
         """Create a new space (database with task schema) under the root page.
@@ -56,17 +69,23 @@ class NotionService:
         Uses client.request() because the high-level databases.create()
         strips the properties kwarg from the request body.
         """
-        db = self.client.request(
-            path="databases",
-            method="POST",
-            body={
-                "parent": {"type": "page_id", "page_id": self.root_page_id},
-                "title": [{"type": "text", "text": {"content": name}}],
-                "icon": {"type": "emoji", "emoji": icon},
-                "properties": TASK_DB_PROPERTIES,
-            },
-        )
-        return {"id": db["id"], "name": name}
+        logger.info("Creating space with name='%s', icon='%s'", name, icon)
+        try:
+            db = self.client.request(
+                path="databases",
+                method="POST",
+                body={
+                    "parent": {"type": "page_id", "page_id": self.root_page_id},
+                    "title": [{"type": "text", "text": {"content": name}}],
+                    "icon": {"type": "emoji", "emoji": icon},
+                    "properties": TASK_DB_PROPERTIES,
+                },
+            )
+            logger.info("Space created successfully with id=%s", db["id"][:8] + "...")
+            return {"id": db["id"], "name": name}
+        except Exception as e:
+            logger.error("Failed to create space '%s': %s", name, e, exc_info=True)
+            raise
 
     def ensure_space_properties(self, space_id: str) -> None:
         """Ensure a database has all required task properties.
@@ -75,25 +94,35 @@ class NotionService:
         which silently ignored properties. Also renames the default 'Name'
         title property to 'Título' if needed.
         """
-        db = self.client.databases.retrieve(space_id)
-        existing = db.get("properties", {})
-        existing_names = set(existing.keys())
+        logger.debug("Ensuring properties for space_id=%s", space_id[:8] + "...")
+        try:
+            db = self.client.databases.retrieve(space_id)
+            existing = db.get("properties", {})
+            existing_names = set(existing.keys())
 
-        updates = {}
+            updates = {}
 
-        # Rename default "Name" title property to "Título"
-        if "Name" in existing_names and "Título" not in existing_names:
-            updates["Name"] = {"name": "Título", "title": {}}
+            # Rename default "Name" title property to "Título"
+            if "Name" in existing_names and "Título" not in existing_names:
+                updates["Name"] = {"name": "Título", "title": {}}
+                logger.info("Renaming 'Name' property to 'Título' for space_id=%s", space_id[:8] + "...")
 
-        # Add all other missing non-title properties
-        for prop_name, prop_schema in TASK_DB_PROPERTIES.items():
-            if prop_name not in existing_names and prop_name != "Título":
-                updates[prop_name] = prop_schema
+            # Add all other missing non-title properties
+            for prop_name, prop_schema in TASK_DB_PROPERTIES.items():
+                if prop_name not in existing_names and prop_name != "Título":
+                    updates[prop_name] = prop_schema
 
-        if updates:
-            self.client.databases.update(
-                database_id=space_id, properties=updates
-            )
+            if updates:
+                logger.info("Updating %d missing properties for space_id=%s", len(updates), space_id[:8] + "...")
+                self.client.databases.update(
+                    database_id=space_id, properties=updates
+                )
+                logger.info("Space properties updated successfully")
+            else:
+                logger.debug("All properties present for space_id=%s", space_id[:8] + "...")
+        except Exception as e:
+            logger.error("Failed to ensure space properties: %s", e, exc_info=True)
+            raise
 
     # --- Tasks (entries in a space database) ---
 
@@ -111,92 +140,131 @@ class NotionService:
             fecha_inicio: Start date (YYYY-MM-DD). Only tasks on or after this date.
             fecha_fin: End date (YYYY-MM-DD). Only tasks on or before this date.
         """
-        filters: list[dict] = []
+        logger.debug("Getting tasks from space_id=%s with filters: status=%s, fecha_inicio=%s, fecha_fin=%s",
+                    space_id[:8] + "...", status, fecha_inicio, fecha_fin)
 
-        if status:
-            filters.append({"property": "Estado", "select": {"equals": status}})
-        if fecha_inicio:
-            filters.append({"property": "Fecha de vencimiento", "date": {"on_or_after": fecha_inicio}})
-        if fecha_fin:
-            filters.append({"property": "Fecha de vencimiento", "date": {"on_or_before": fecha_fin}})
+        try:
+            filters: list[dict] = []
 
-        body = {}
-        if len(filters) == 1:
-            body["filter"] = filters[0]
-        elif len(filters) > 1:
-            body["filter"] = {"and": filters}
+            if status:
+                filters.append({"property": "Estado", "select": {"equals": status}})
+            if fecha_inicio:
+                filters.append({"property": "Fecha de vencimiento", "date": {"on_or_after": fecha_inicio}})
+            if fecha_fin:
+                filters.append({"property": "Fecha de vencimiento", "date": {"on_or_before": fecha_fin}})
 
-        response = self.client.request(
-            path=f"databases/{space_id}/query",
-            method="POST",
-            body=body,
-        )
-        return [self._parse_task(page) for page in response["results"]]
+            body = {}
+            if len(filters) == 1:
+                body["filter"] = filters[0]
+            elif len(filters) > 1:
+                body["filter"] = {"and": filters}
+
+            response = self.client.request(
+                path=f"databases/{space_id}/query",
+                method="POST",
+                body=body,
+            )
+            tasks = [self._parse_task(page) for page in response["results"]]
+            logger.info("Retrieved %d task(s) from space_id=%s", len(tasks), space_id[:8] + "...")
+            return tasks
+        except Exception as e:
+            logger.error("Failed to get tasks: %s", e, exc_info=True)
+            raise
 
     def create_task(self, space_id: str, title: str, due_date: str | None = None,
                     priority: str = "Media", tags: list[str] | None = None,
                     notes: str | None = None, url: str | None = None) -> dict:
         """Create a task in a space."""
-        properties = {
-            "Título": {"title": [{"text": {"content": title}}]},
-            "Estado": {"select": {"name": "Pendiente"}},
-            "Prioridad": {"select": {"name": priority}},
-        }
-        if due_date:
-            properties["Fecha de vencimiento"] = {"date": {"start": due_date}}
-        if tags:
-            properties["Etiquetas"] = {"multi_select": [{"name": t} for t in tags]}
-        if notes:
-            properties["Notas"] = {"rich_text": [{"text": {"content": notes}}]}
-        if url:
-            properties["Enlaces"] = {"url": url}
+        logger.info("Creating task in space_id=%s with title='%s', due_date=%s, priority=%s",
+                   space_id[:8] + "...", title, due_date, priority)
 
-        page = self.client.pages.create(
-            parent={"database_id": space_id},
-            properties=properties,
-        )
-        return self._parse_task(page)
+        try:
+            properties = {
+                "Título": {"title": [{"text": {"content": title}}]},
+                "Estado": {"select": {"name": "Pendiente"}},
+                "Prioridad": {"select": {"name": priority}},
+            }
+            if due_date:
+                properties["Fecha de vencimiento"] = {"date": {"start": due_date}}
+            if tags:
+                properties["Etiquetas"] = {"multi_select": [{"name": t} for t in tags]}
+            if notes:
+                properties["Notas"] = {"rich_text": [{"text": {"content": notes}}]}
+            if url:
+                properties["Enlaces"] = {"url": url}
+
+            page = self.client.pages.create(
+                parent={"database_id": space_id},
+                properties=properties,
+            )
+            task = self._parse_task(page)
+            logger.info("Task created successfully with id=%s", task["id"][:8] + "...")
+            return task
+        except Exception as e:
+            logger.error("Failed to create task: %s", e, exc_info=True)
+            raise
 
     def update_task(self, task_id: str, **updates) -> dict:
         """Update task properties. Accepts: title, due_date, status, priority, tags, notes, url."""
-        properties = {}
-        if "title" in updates:
-            properties["Título"] = {"title": [{"text": {"content": updates["title"]}}]}
-        if "due_date" in updates:
-            properties["Fecha de vencimiento"] = {"date": {"start": updates["due_date"]} if updates["due_date"] else None}
-        if "status" in updates:
-            properties["Estado"] = {"select": {"name": updates["status"]}}
-        if "priority" in updates:
-            properties["Prioridad"] = {"select": {"name": updates["priority"]}}
-        if "tags" in updates:
-            properties["Etiquetas"] = {"multi_select": [{"name": t} for t in updates["tags"]]}
-        if "notes" in updates:
-            properties["Notas"] = {"rich_text": [{"text": {"content": updates["notes"]}}]}
-        if "url" in updates:
-            properties["Enlaces"] = {"url": updates["url"]}
+        logger.info("Updating task_id=%s with fields: %s", task_id[:8] + "...", list(updates.keys()))
 
-        page = self.client.pages.update(page_id=task_id, properties=properties)
-        return self._parse_task(page)
+        try:
+            properties = {}
+            if "title" in updates:
+                properties["Título"] = {"title": [{"text": {"content": updates["title"]}}]}
+            if "due_date" in updates:
+                properties["Fecha de vencimiento"] = {"date": {"start": updates["due_date"]} if updates["due_date"] else None}
+            if "status" in updates:
+                properties["Estado"] = {"select": {"name": updates["status"]}}
+            if "priority" in updates:
+                properties["Prioridad"] = {"select": {"name": updates["priority"]}}
+            if "tags" in updates:
+                properties["Etiquetas"] = {"multi_select": [{"name": t} for t in updates["tags"]]}
+            if "notes" in updates:
+                properties["Notas"] = {"rich_text": [{"text": {"content": updates["notes"]}}]}
+            if "url" in updates:
+                properties["Enlaces"] = {"url": updates["url"]}
+
+            page = self.client.pages.update(page_id=task_id, properties=properties)
+            task = self._parse_task(page)
+            logger.info("Task updated successfully")
+            return task
+        except Exception as e:
+            logger.error("Failed to update task: %s", e, exc_info=True)
+            raise
 
     def delete_task(self, task_id: str) -> bool:
         """Archive (delete) a task."""
-        self.client.pages.update(page_id=task_id, archived=True)
-        return True
+        logger.info("Deleting (archiving) task_id=%s", task_id[:8] + "...")
+        try:
+            self.client.pages.update(page_id=task_id, archived=True)
+            logger.info("Task deleted successfully")
+            return True
+        except Exception as e:
+            logger.error("Failed to delete task: %s", e, exc_info=True)
+            raise
 
     def search_tasks(self, query: str) -> list[dict]:
         """Search tasks across all spaces."""
-        response = self.client.search(
-            query=query,
-            filter={"property": "object", "value": "page"},
-        )
-        tasks = []
-        for page in response["results"]:
-            if page.get("parent", {}).get("type") == "database_id":
-                try:
-                    tasks.append(self._parse_task(page))
-                except (KeyError, IndexError):
-                    continue
-        return tasks
+        logger.info("Searching tasks with query='%s'", query)
+        try:
+            response = self.client.search(
+                query=query,
+                filter={"property": "object", "value": "page"},
+            )
+            tasks = []
+            for page in response["results"]:
+                if page.get("parent", {}).get("type") == "database_id":
+                    try:
+                        tasks.append(self._parse_task(page))
+                    except (KeyError, IndexError) as e:
+                        logger.warning("Failed to parse task page %s: %s", page.get("id", "unknown"), e)
+                        continue
+            logger.info("Search returned %d task(s)", len(tasks))
+            return tasks
+        except Exception as e:
+            logger.error("Failed to search tasks: %s", e, exc_info=True)
+            raise
 
     # --- Helpers ---
 
