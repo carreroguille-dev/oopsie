@@ -8,14 +8,12 @@ from src.utils.config import load_config
 from src.notion.client import NotionService
 from src.agent.tools.definitions import set_notion_service
 from src.agent.core import OopsieAgent
-from src.voice.transcriber import Transcriber
 from src.interface.bot import create_bot
 
 logger = logging.getLogger(__name__)
 
 
 def main():
-    # Configure root logger
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -31,7 +29,6 @@ def main():
         logger.critical("Failed to load configuration", exc_info=True)
         raise
 
-    # Notion — inject into tools module
     try:
         notion = NotionService(
             api_key=config["notion"]["api_key"],
@@ -43,7 +40,6 @@ def main():
         logger.critical("Failed to initialize Notion service", exc_info=True)
         raise
 
-    # Fix existing databases that may be missing properties
     try:
         spaces = notion.list_spaces()
         logger.info("Found %d existing space(s)", len(spaces))
@@ -53,7 +49,6 @@ def main():
     except Exception as e:
         logger.warning("Could not verify space properties: %s", e)
 
-    # Agent (LLM + LangGraph)
     llm_cfg = config["llm"]
     try:
         agent = OopsieAgent(
@@ -69,23 +64,9 @@ def main():
         logger.critical("Failed to initialize agent", exc_info=True)
         raise
 
-    # Voice (optional — skip if faster-whisper fails to load)
-    transcriber = None
-    try:
-        voice_cfg = config.get("voice", {})
-        transcriber = Transcriber(
-            model_size=voice_cfg.get("model_size", "small"),
-            language=voice_cfg.get("language", "es"),
-        )
-        logger.info("Voice transcriber initialized with model_size=%s, language=%s",
-                   voice_cfg.get("model_size", "small"), voice_cfg.get("language", "es"))
-    except Exception as e:
-        logger.warning("Voice transcription disabled: %s", e)
-
-    # Telegram bot
     try:
         tg_cfg = config["telegram"]
-        app = create_bot(agent, transcriber, tg_cfg["bot_token"], tg_cfg["user_id"])
+        app = create_bot(agent, tg_cfg["bot_token"], tg_cfg["user_id"])
         logger.info("Telegram bot created for user_id=%s", tg_cfg["user_id"])
         logger.info("Oopsie bot started successfully. Polling for messages...")
         app.run_polling()

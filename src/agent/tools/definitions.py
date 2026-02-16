@@ -160,6 +160,30 @@ def delete_task(task_id: str) -> str:
 
 
 @tool
+def get_all_tasks(status: str | None = None,
+                  fecha_inicio: str | None = None,
+                  fecha_fin: str | None = None) -> str:
+    """Obtiene tareas de TODOS los espacios a la vez. Usa esta herramienta cuando el usuario pida tareas sin especificar un espacio concreto.
+
+    Args:
+        status: Filtro por estado ("Pendiente", "En progreso", "Completada").
+        fecha_inicio: Desde fecha YYYY-MM-DD (inclusive).
+        fecha_fin: Hasta fecha YYYY-MM-DD (inclusive).
+    """
+    logger.info("Tool get_all_tasks called with status=%s, fecha_inicio=%s, fecha_fin=%s",
+               status, fecha_inicio, fecha_fin)
+    try:
+        tasks = _get_notion().get_all_tasks(
+            status=status, fecha_inicio=fecha_inicio, fecha_fin=fecha_fin,
+        )
+        logger.info("get_all_tasks returned %d task(s)", len(tasks))
+        return json.dumps({"tasks": tasks}, ensure_ascii=False)
+    except Exception as e:
+        logger.error("get_all_tasks failed: %s", e, exc_info=True)
+        return json.dumps({"error": str(e)}, ensure_ascii=False)
+
+
+@tool
 def search_tasks(query: str) -> str:
     """Busca tareas por texto en todos los espacios.
 
@@ -178,6 +202,6 @@ def search_tasks(query: str) -> str:
 
 # All tools as a list, ready to pass to create_react_agent
 ALL_TOOLS = [
-    list_spaces, create_space, get_tasks, create_task,
+    list_spaces, create_space, get_tasks, get_all_tasks, create_task,
     update_task, complete_task, delete_task, search_tasks,
 ]

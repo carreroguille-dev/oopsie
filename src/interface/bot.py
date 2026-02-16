@@ -1,5 +1,3 @@
-"""Telegram bot interface for Oopsie — thin layer, no business logic."""
-
 import logging
 import tempfile
 from functools import wraps
@@ -16,7 +14,6 @@ from telegram.ext import (
 )
 
 from src.agent.core import OopsieAgent
-from src.voice.transcriber import Transcriber
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +55,6 @@ async def _send_long_message(update: Update, text: str) -> None:
 
 def create_bot(
     agent: OopsieAgent,
-    transcriber: Transcriber | None,
     bot_token: str,
     allowed_user_id: int,
 ) -> Application:
@@ -103,52 +99,11 @@ def create_bot(
             logger.error("Failed to handle text message from user_id=%s", user_id, exc_info=True)
             await update.message.reply_text("Lo siento, ocurrió un error al procesar tu mensaje.")
 
-    @auth
-    async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        user_id = update.effective_user.id
-        logger.info("Voice message received from user_id=%s", user_id)
-
-        if not transcriber:
-            logger.warning("Voice transcription not available for user_id=%s", user_id)
-            await update.message.reply_text("El reconocimiento de voz no está disponible.")
-            return
-
-        voice = update.message.voice
-        voice_file = await context.bot.get_file(voice.file_id)
-        logger.debug("Voice file retrieved: file_id=%s, duration=%ds", voice.file_id, voice.duration)
-
-        with tempfile.NamedTemporaryFile(suffix=".ogg", delete=False) as tmp:
-            tmp_path = Path(tmp.name)
-
-        try:
-            await voice_file.download_to_drive(str(tmp_path))
-            logger.debug("Voice file downloaded to: %s", tmp_path)
-
-            text = transcriber.transcribe(str(tmp_path))
-            logger.info("Voice transcribed for user_id=%s: '%s'", user_id, text)
-
-            if not text.strip():
-                logger.warning("Empty transcription for user_id=%s", user_id)
-                await update.message.reply_text("No pude entender el audio.")
-                return
-
-            await update.message.chat.send_action(ChatAction.TYPING)
-            response = agent.process_message(text)
-            await _send_long_message(update, f"🎤 {text}\n\n{response}")
-            logger.info("Voice response sent to user_id=%s", user_id)
-        except Exception as e:
-            logger.error("Failed to handle voice message from user_id=%s", user_id, exc_info=True)
-            await update.message.reply_text("Lo siento, ocurrió un error al procesar tu mensaje de voz.")
-        finally:
-            tmp_path.unlink(missing_ok=True)
-            logger.debug("Temporary voice file deleted: %s", tmp_path)
-
     app = Application.builder().token(bot_token).build()
 
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("reset", reset_command))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
-    app.add_handler(MessageHandler(filters.VOICE, handle_voice))
 
     logger.info("Telegram bot handlers registered successfully")
     return app

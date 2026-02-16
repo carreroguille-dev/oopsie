@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime
 
 from notion_client import Client
 
@@ -33,6 +34,31 @@ TASK_DB_PROPERTIES = {
     "Enlaces": {"url": {}},
     "Notas": {"rich_text": {}},
 }
+
+
+def _validate_date(date_str: str) -> str:
+    """Validate and fix a YYYY-MM-DD date string. Clamps invalid days to the last valid day of the month."""
+    try:
+        datetime.strptime(date_str, "%Y-%m-%d")
+        return date_str
+    except ValueError:
+        # Try to fix invalid day (e.g. 2026-02-29 → 2026-02-28)
+        parts = date_str.split("-")
+        if len(parts) == 3:
+            year, month = int(parts[0]), int(parts[1])
+            # Find last valid day of the month
+            for day in (28, 29, 30, 31):
+                try:
+                    valid = datetime(year, month, day)
+                except ValueError:
+                    last_valid = day - 1
+                    break
+            else:
+                last_valid = 31
+            fixed = f"{year:04d}-{month:02d}-{last_valid:02d}"
+            logger.warning("Invalid date '%s' corrected to '%s'", date_str, fixed)
+            return fixed
+        raise ValueError(f"Invalid date format: {date_str}")
 
 
 class NotionService:
@@ -144,6 +170,11 @@ class NotionService:
                     space_id[:8] + "...", status, fecha_inicio, fecha_fin)
 
         try:
+            if fecha_inicio:
+                fecha_inicio = _validate_date(fecha_inicio)
+            if fecha_fin:
+                fecha_fin = _validate_date(fecha_fin)
+
             filters: list[dict] = []
 
             if status:
@@ -242,6 +273,30 @@ class NotionService:
             return True
         except Exception as e:
             logger.error("Failed to delete task: %s", e, exc_info=True)
+            raise
+
+    def get_all_tasks(self, status: str | None = None,
+                      fecha_inicio: str | None = None,
+                      fecha_fin: str | None = None) -> list[dict]:
+        """Get tasks from ALL spaces, with optional filters."""
+        logger.info("Getting tasks from all spaces with filters: status=%s, fecha_inicio=%s, fecha_fin=%s",
+                    status, fecha_inicio, fecha_fin)
+        try:
+            spaces = self.list_spaces()
+            all_tasks = []
+            for space in spaces:
+                tasks = self.get_tasks(
+                    space_id=space["id"], status=status,
+                    fecha_inicio=fecha_inicio, fecha_fin=fecha_fin,
+                )
+                for task in tasks:
+                    task["space_name"] = space["name"]
+                all_tasks.extend(tasks)
+            logger.info("get_all_tasks returned %d task(s) across %d space(s)",
+                       len(all_tasks), len(spaces))
+            return all_tasks
+        except Exception as e:
+            logger.error("Failed to get all tasks: %s", e, exc_info=True)
             raise
 
     def search_tasks(self, query: str) -> list[dict]:
