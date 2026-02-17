@@ -4,12 +4,13 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
-from langchain_core.messages import AIMessage, HumanMessage, RemoveMessage, ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage, RemoveMessage, SystemMessage, ToolMessage
 from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.prebuilt import create_react_agent
 
 from src.agent.tools.definitions import ALL_TOOLS
+from src.cache.space_cache import SpaceCache
 
 logger = logging.getLogger(__name__)
 
@@ -18,18 +19,35 @@ MAX_HISTORY_MESSAGES = 10
 _PROMPT_PATH = Path(__file__).parent / "prompts" / "system_prompt.txt"
 
 
-def _build_system_prompt() -> str:
-    """Load system prompt template and inject current date."""
+def _build_system_prompt(space_cache: SpaceCache | None = None) -> str:
+    """Load system prompt template, inject current date and cached spaces."""
     template = _PROMPT_PATH.read_text(encoding="utf-8")
     today = datetime.now().strftime("%Y-%m-%d (%A)")
-    return template.format(current_date=today)
+    prompt = template.format(current_date=today)
+
+    if space_cache:
+        spaces = space_cache.get_spaces()
+        if spaces:
+            prompt += "\n\n<espacios_disponibles>\n"
+            for name, uuid in spaces.items():
+                prompt += f"- {name}: {uuid}\n"
+            prompt += "</espacios_disponibles>"
+
+    return prompt
 
 
 class OopsieAgent:
     def __init__(self, model: str, api_key: str, base_url: str,
-                 temperature: float = 0.7, max_tokens: int = 2048, user_id: str = None):
+                 temperature: float, max_tokens: int,
+                 user_id: str = None, space_cache: SpaceCache | None = None,
+                 model_kwargs: dict | None = None):
         logger.info("Initializing OopsieAgent with model=%s, base_url=%s, temperature=%.2f, max_tokens=%d",
                    model, base_url, temperature, max_tokens)
+
+        self._space_cache = space_cache
+
+        extra = dict(model_kwargs or {})
+        top_p = extra.pop("top_p", None)
 
         llm = ChatOpenAI(
             model=model,
@@ -37,13 +55,15 @@ class OopsieAgent:
             base_url=base_url,
             temperature=temperature,
             max_tokens=max_tokens,
+            top_p=top_p,
+            extra_body=extra if extra else None,
         )
 
         self.graph = create_react_agent(
             model=llm,
             tools=ALL_TOOLS,
             checkpointer=MemorySaver(),
-            prompt=_build_system_prompt(),
+            prompt=lambda state: [SystemMessage(content=_build_system_prompt(self._space_cache))] + state["messages"],
         )
 
         self._thread_id = str(uuid.uuid4())
@@ -155,6 +175,7 @@ class OopsieAgent:
 
         for msg in reversed(messages[last_human_idx + 1:]):
             if isinstance(msg, AIMessage) and isinstance(msg.content, str) and msg.content.strip():
+                logger.debug("AIMessage content type=%s, value=%r", type(msg.content), msg.content)
                 return msg.content
         return "No pude generar una respuesta. Intenta de nuevo."
 

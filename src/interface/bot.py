@@ -122,6 +122,7 @@ def create_bot(
             markup = _build_space_keyboard(space_names) if space_names else None
             await _send_long_message(update, clean_text, reply_markup=markup)
             logger.info("Response sent to user_id=%s (length=%d chars)", user_id, len(clean_text))
+            logger.debug("Raw agent response (length=%d): %r", len(response or ""), response)
         except Exception as e:
             logger.error("Failed to handle text message from user_id=%s", user_id, exc_info=True)
             await update.message.reply_text("Lo siento, ocurrió un error al procesar tu mensaje.")

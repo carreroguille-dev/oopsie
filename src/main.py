@@ -6,8 +6,9 @@ os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
 
 from src.utils.config import load_config
 from src.notion.client import NotionService
-from src.agent.tools.definitions import set_notion_service
+from src.agent.tools.definitions import set_notion_service, set_space_cache
 from src.agent.core import OopsieAgent
+from src.cache.space_cache import SpaceCache
 from src.interface.bot import create_bot
 
 logger = logging.getLogger(__name__)
@@ -49,6 +50,11 @@ def main():
     except Exception as e:
         logger.warning("Could not verify space properties: %s", e)
 
+    space_cache = SpaceCache(notion, ttl=1800)
+    space_cache.load()
+    set_space_cache(space_cache)
+    logger.info("Space cache initialized")
+
     llm_cfg = config["llm"]
     try:
         agent = OopsieAgent(
@@ -57,6 +63,8 @@ def main():
             base_url=llm_cfg["base_url"],
             temperature=llm_cfg["temperature"],
             max_tokens=llm_cfg["max_tokens"],
+            space_cache=space_cache,
+            model_kwargs=llm_cfg.get("model_kwargs", {}),
         )
         logger.info("Agent initialized with model=%s, temperature=%.2f, max_tokens=%d",
                    llm_cfg["model"], llm_cfg["temperature"], llm_cfg["max_tokens"])

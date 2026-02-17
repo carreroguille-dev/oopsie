@@ -10,6 +10,7 @@ from src.notion.client import NotionService
 logger = logging.getLogger(__name__)
 
 _notion: NotionService | None = None
+_space_cache = None
 
 
 def set_notion_service(notion: NotionService) -> None:
@@ -17,6 +18,13 @@ def set_notion_service(notion: NotionService) -> None:
     global _notion
     _notion = notion
     logger.info("NotionService injected into tools module")
+
+
+def set_space_cache(cache) -> None:
+    """Inject the SpaceCache instance for invalidation on space changes."""
+    global _space_cache
+    _space_cache = cache
+    logger.info("SpaceCache injected into tools module")
 
 
 def _get_notion() -> NotionService:
@@ -61,7 +69,11 @@ def create_space(name: str, icon: str = "📁") -> str:
         icon: Emoji representativo (default "📁").
     """
     logger.info("Tool create_space called with name='%s', icon='%s'", name, icon)
-    return _safe(_get_notion().create_space, name=name, icon=icon)
+    result = _safe(_get_notion().create_space, name=name, icon=icon)
+    if _space_cache and '"error"' not in result:
+        parsed = json.loads(result)
+        _space_cache.add(parsed["name"], parsed["id"])
+    return result
 
 
 @tool
