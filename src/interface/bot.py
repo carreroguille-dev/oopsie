@@ -1,4 +1,5 @@
 import logging
+import os
 import re
 import tempfile
 from functools import wraps
@@ -16,6 +17,7 @@ from telegram.ext import (
 )
 
 from src.agent.core import OopsieAgent
+from src.voice.transcriber import Transcriber
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +66,11 @@ async def _send_long_message(
     rejects the markup (unmatched delimiters, unsupported syntax, etc.).
     ``reply_markup`` is only attached to the **last** chunk.
     """
+    if not text:
+        if reply_markup:
+            await update.message.reply_text("Elige un espacio:", reply_markup=reply_markup)
+        return
+
     num_chunks = (len(text) + MAX_MESSAGE_LENGTH - 1) // MAX_MESSAGE_LENGTH
     if num_chunks > 1:
         logger.debug("Splitting message into %d chunk(s) (total length=%d)", num_chunks, len(text))
@@ -82,6 +89,7 @@ def create_bot(
     agent: OopsieAgent,
     bot_token: str,
     allowed_user_id: int,
+    transcriber: Transcriber | None = None,
 ) -> Application:
     """Create and return the Telegram bot application."""
     logger.info("Creating Telegram bot for allowed_user_id=%s", allowed_user_id)
@@ -154,11 +162,47 @@ def create_bot(
             logger.error("Failed to handle space selection for user_id=%s", user_id, exc_info=True)
             await query.message.reply_text("Lo siento, ocurrió un error al procesar tu selección.")
 
+    @auth
+    async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        if not transcriber:
+            await update.message.reply_text("No tengo soporte de voz configurado.")
+            return
+
+        user_id = update.effective_user.id
+        logger.info("Voice message received from user_id=%s", user_id)
+
+        tmp_path = None
+        try:
+            tg_file = await context.bot.get_file(update.message.voice.file_id)
+            fd, tmp_path = tempfile.mkstemp(suffix=".ogg")
+            os.close(fd)
+            await tg_file.download_to_drive(tmp_path)
+
+            await update.message.chat.send_action(ChatAction.TYPING)
+            text = transcriber.transcribe(tmp_path)
+            if not text:
+                await update.message.reply_text("No pude entender el audio.")
+                return
+
+            logger.info("Voice transcribed for user_id=%s: '%s'", user_id, text[:60])
+            response = agent.process_message(text)
+            clean_text, space_names = _extract_space_select(response)
+            markup = _build_space_keyboard(space_names) if space_names else None
+            await _send_long_message(update, clean_text, reply_markup=markup)
+            logger.info("Voice response sent to user_id=%s (length=%d chars)", user_id, len(clean_text))
+        except Exception:
+            logger.error("Failed to handle voice message from user_id=%s", user_id, exc_info=True)
+            await update.message.reply_text("Lo siento, ocurrió un error al procesar tu mensaje de voz.")
+        finally:
+            if tmp_path:
+                Path(tmp_path).unlink(missing_ok=True)
+
     app = Application.builder().token(bot_token).build()
 
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("reset", reset_command))
     app.add_handler(CallbackQueryHandler(handle_space_selection, pattern="^space:"))
+    app.add_handler(MessageHandler(filters.VOICE, handle_voice))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 
     logger.info("Telegram bot handlers registered successfully")

@@ -2,7 +2,6 @@
 
 import logging
 import os
-os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
 
 from src.utils.config import load_config
 from src.notion.client import NotionService
@@ -10,6 +9,7 @@ from src.agent.tools.definitions import set_notion_service, set_space_cache
 from src.agent.core import OopsieAgent
 from src.cache.space_cache import SpaceCache
 from src.interface.bot import create_bot
+from src.voice.transcriber import Transcriber
 
 logger = logging.getLogger(__name__)
 
@@ -72,9 +72,22 @@ def main():
         logger.critical("Failed to initialize agent", exc_info=True)
         raise
 
+    voice_cfg = config.get("voice", {})
+    groq_api_key = os.getenv("GROQ_API_KEY", "")
+    if groq_api_key:
+        transcriber = Transcriber(
+            api_key=groq_api_key,
+            base_url=voice_cfg["base_url"],
+            model=voice_cfg["model"],
+            language=voice_cfg["language"],
+        )
+    else:
+        transcriber = None
+        logger.warning("GROQ_API_KEY not set — voice messages will not be transcribed")
+
     try:
         tg_cfg = config["telegram"]
-        app = create_bot(agent, tg_cfg["bot_token"], tg_cfg["user_id"])
+        app = create_bot(agent, tg_cfg["bot_token"], tg_cfg["user_id"], transcriber=transcriber)
         logger.info("Telegram bot created for user_id=%s", tg_cfg["user_id"])
         logger.info("Oopsie bot started successfully. Polling for messages...")
         app.run_polling()

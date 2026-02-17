@@ -11,7 +11,8 @@ llm:
     repetition_penalty: 1.05
 
 voice:
-  model_size: "small"  
+  model: "whisper-large-v3"
+  base_url: "https://api.groq.com/openai/v1"
   language: "es"
 
 timezone: "Europe/Madrid"
