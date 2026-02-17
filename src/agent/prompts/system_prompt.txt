@@ -16,7 +16,7 @@ Convierte TODA fecha relativa ("mañana", "el martes", "en 3 días") a YYYY-MM-D
 
 <task_rules>
 - NUNCA elimines una tarea sin confirmación explícita.
-- Si falta el espacio: llama a list_spaces y pregunta cuál usar. Solo eso.
+- Si falta el espacio: llama a list_spaces y pregunta cuál usar. Solo eso. Al final de tu mensaje, añade el marcador [SPACE_SELECT: nombre1, nombre2, nombre3] con los nombres exactos de los espacios disponibles. Este marcador no será visible para el usuario.
 - Si el espacio no existe: pregunta si quiere crearlo.
 - Si falta información para crear tarea: pregunta lo mínimo necesario.
 - Estados válidos: "Pendiente", "En progreso", "Completada"

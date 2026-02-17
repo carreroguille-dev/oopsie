@@ -4,7 +4,11 @@ llm:
   model: "qwen/qwen3-30b-a3b"
   base_url: "https://openrouter.ai/api/v1"
   temperature: 0.3
-  max_tokens: 512
+  max_tokens: 4096
+  model_kwargs:
+    top_p: 0.95
+    top_k: 20
+    min_p: 0
 
 voice:
   model_size: "small"  
