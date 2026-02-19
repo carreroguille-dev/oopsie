@@ -1,19 +1,19 @@
 # Oopsie
 
-A personal AI task management assistant that runs on Telegram and stores tasks in Notion. Understands Spanish natural language, handles voice messages, and sends daily reminders for upcoming tasks.
+Asistente personal de gestión de tareas con IA que funciona a través de Telegram y almacena las tareas en Notion. Entiende lenguaje natural en español, procesa mensajes de voz y envía recordatorios diarios de tareas próximas.
 
-## Features
+## Funcionalidades
 
-- Manage tasks across multiple Notion workspaces ("spaces")
-- Natural language date parsing in Spanish (*"mañana"*, *"el viernes"*, etc.)
-- Voice message transcription
-- Daily reminders for tasks due in the next 2 days
-- Inline keyboard for space selection
-- Conversation memory per user session
+- Gestión de tareas en múltiples espacios de trabajo de Notion ("spaces")
+- Interpretación de fechas en lenguaje natural (*"mañana"*, *"el viernes"*, etc.)
+- Transcripción de mensajes de voz
+- Recordatorios diarios de tareas con vencimiento en los próximos 2 días
+- Teclado inline para selección de espacio
+- Memoria de conversación por sesión de usuario
 
 ---
 
-## Architecture
+## Arquitectura
 
 ```mermaid
 graph TD
@@ -30,7 +30,7 @@ graph TD
     Notion -->|tasks| Scheduler
 ```
 
-### Component Overview
+### Visión general de componentes
 
 ```mermaid
 flowchart LR
@@ -63,32 +63,32 @@ flowchart LR
 
 ---
 
-## Models
+## Modelos
 
-| Role | Model | Provider |
-|------|-------|----------|
-| LLM (agent reasoning) | `qwen/qwen3-coder-30b-a3b-instruct` | [OpenRouter](https://openrouter.ai) |
-| Speech-to-Text | `whisper-large-v3` | [Groq](https://groq.com) |
+| Rol | Modelo | Proveedor |
+|-----|--------|-----------|
+| LLM (razonamiento del agente) | `qwen/qwen3-coder-30b-a3b-instruct` | [OpenRouter](https://openrouter.ai) |
+| Voz a texto | `whisper-large-v3` | [Groq](https://groq.com) |
 
-LLM observability is handled by [Langfuse](https://langfuse.com).
+La observabilidad del LLM se gestiona con [Langfuse](https://langfuse.com).
 
 ---
 
-## Tech Stack
+## Stack tecnológico
 
 - **Python 3.11**
-- **LangGraph** — ReAct agent pattern
-- **LangChain** — LLM abstraction
-- **python-telegram-bot** — Telegram interface
-- **notion-client** — Notion API
-- **APScheduler** — daily reminder job
-- **cachetools** — TTL space cache
-- **dateparser** — Spanish natural language dates
+- **LangGraph** — patrón de agente ReAct
+- **LangChain** — abstracción del LLM
+- **python-telegram-bot** — interfaz de Telegram
+- **notion-client** — API de Notion
+- **APScheduler** — tarea de recordatorios diarios
+- **cachetools** — caché TTL de espacios
+- **dateparser** — fechas en lenguaje natural en español
 - **Docker / Docker Compose**
 
 ---
 
-## Environment Variables
+## Variables de entorno
 
 ```env
 TELEGRAM_BOT_TOKEN=
@@ -100,7 +100,7 @@ GROQ_API_KEY=
 NOTION_API_KEY=
 NOTION_ROOT_PAGE_ID=
 
-# Optional — Langfuse observability
+# Opcional — observabilidad con Langfuse
 LANGFUSE_SECRET_KEY=
 LANGFUSE_PUBLIC_KEY=
 LANGFUSE_HOST=
@@ -108,12 +108,12 @@ LANGFUSE_HOST=
 
 ---
 
-## Quick Start
+## Inicio rápido
 
 ```bash
-# 1. Copy and fill in your environment variables
+# 1. Copia y rellena las variables de entorno
 cp .env.example .env
 
-# 2. Run with Docker Compose
+# 2. Lanza con Docker Compose
 docker compose up --build
 ```
