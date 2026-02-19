@@ -6,7 +6,7 @@ from typing import Callable
 
 from langchain_core.tools import tool
 
-from src.cache.space_cache import SpaceCache
+from src.notion_cache.space_cache import SpaceCache
 from src.notion.client import NotionService
 
 logger = logging.getLogger(__name__)

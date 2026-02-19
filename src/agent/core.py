@@ -9,7 +9,7 @@ from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.prebuilt import create_react_agent
 
-from src.cache.space_cache import SpaceCache
+from src.notion_cache.space_cache import SpaceCache
 
 logger = logging.getLogger(__name__)
 

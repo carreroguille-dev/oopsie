@@ -91,6 +91,5 @@ temp/
 
 # Datos locales y caché
 data/
-cache/
 *.sqlite
 *.db

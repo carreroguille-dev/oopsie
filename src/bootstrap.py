@@ -4,7 +4,7 @@ import os
 from src.notion.client import NotionService
 from src.agent.tools.definitions import build_tools
 from src.agent.core import OopsieAgent
-from src.cache.space_cache import SpaceCache
+from src.notion_cache.space_cache import SpaceCache
 from src.voice.transcriber import Transcriber
 
 logger = logging.getLogger(__name__)
