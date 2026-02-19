@@ -40,7 +40,7 @@ def main():
     logger.info("Oopsie bot started. Polling for messages...")
 
     try:
-        app.run_polling()
+        app.run_polling(drop_pending_updates=True)
     except KeyboardInterrupt:
         logger.info("Bot stopped by user")
 
