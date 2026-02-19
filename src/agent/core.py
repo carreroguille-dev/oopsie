@@ -9,7 +9,6 @@ from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.prebuilt import create_react_agent
 
-from src.agent.tools.definitions import ALL_TOOLS
 from src.cache.space_cache import SpaceCache
 
 logger = logging.getLogger(__name__)
@@ -38,7 +37,7 @@ def _build_system_prompt(space_cache: SpaceCache | None = None) -> str:
 
 class OopsieAgent:
     def __init__(self, model: str, api_key: str, base_url: str,
-                 temperature: float, max_tokens: int,
+                 temperature: float, max_tokens: int, tools: list,
                  user_id: str = None, space_cache: SpaceCache | None = None,
                  model_kwargs: dict | None = None):
         logger.info("Initializing OopsieAgent with model=%s, base_url=%s, temperature=%.2f, max_tokens=%d",
@@ -61,7 +60,7 @@ class OopsieAgent:
 
         self.graph = create_react_agent(
             model=llm,
-            tools=ALL_TOOLS,
+            tools=tools,
             checkpointer=MemorySaver(),
             prompt=lambda state: [SystemMessage(content=_build_system_prompt(self._space_cache))] + state["messages"],
         )
@@ -121,7 +120,7 @@ class OopsieAgent:
             metadata["langfuse_user_id"] = self._user_id
         return metadata
 
-    def process_message(self, user_message: str) -> str:
+    async def process_message(self, user_message: str) -> str:
         """Process a user message. Returns the final text response."""
         logger.debug("Processing message (length=%d chars)", len(user_message))
 
@@ -134,19 +133,19 @@ class OopsieAgent:
             logger.debug("Langfuse handler attached to request")
 
         try:
-            result = self.graph.invoke(
+            result = await self.graph.ainvoke(
                 {"messages": [("user", user_message)]},
                 config=config,
             )
             response = self._extract_response(result["messages"])
-            self._trim_history(config, result["messages"])
+            await self._trim_history(config, result["messages"])
             logger.info("Message processed successfully, response length=%d chars", len(response))
             return response
         except Exception as e:
             logger.error("Failed to process message", exc_info=True)
             raise
 
-    def _trim_history(self, config: dict, messages: list) -> None:
+    async def _trim_history(self, config: dict, messages: list) -> None:
         """Trim conversation history to the last MAX_HISTORY_MESSAGES.
         """
         if len(messages) <= MAX_HISTORY_MESSAGES:
@@ -162,7 +161,7 @@ class OopsieAgent:
             return
 
         removals = [RemoveMessage(id=m.id) for m in to_drop]
-        self.graph.update_state(config, {"messages": removals})
+        await self.graph.aupdate_state(config, {"messages": removals})
         logger.debug("Trimmed %d message(s) from history", len(to_drop))
 
     @staticmethod

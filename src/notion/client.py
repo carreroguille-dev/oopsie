@@ -1,3 +1,4 @@
+import calendar
 import logging
 from datetime import datetime
 
@@ -42,19 +43,10 @@ def _validate_date(date_str: str) -> str:
         datetime.strptime(date_str, "%Y-%m-%d")
         return date_str
     except ValueError:
-        # Try to fix invalid day (e.g. 2026-02-29 → 2026-02-28)
         parts = date_str.split("-")
         if len(parts) == 3:
             year, month = int(parts[0]), int(parts[1])
-            # Find last valid day of the month
-            for day in (28, 29, 30, 31):
-                try:
-                    valid = datetime(year, month, day)
-                except ValueError:
-                    last_valid = day - 1
-                    break
-            else:
-                last_valid = 31
+            last_valid = calendar.monthrange(year, month)[1]
             fixed = f"{year:04d}-{month:02d}-{last_valid:02d}"
             logger.warning("Invalid date '%s' corrected to '%s'", date_str, fixed)
             return fixed

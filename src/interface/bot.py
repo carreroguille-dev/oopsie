@@ -1,3 +1,4 @@
+import datetime
 import logging
 import os
 import re
@@ -5,6 +6,7 @@ import tempfile
 from functools import wraps
 from pathlib import Path
 
+import pytz
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.constants import ChatAction, ChatType, ParseMode
 from telegram.ext import (
@@ -12,11 +14,13 @@ from telegram.ext import (
     CallbackQueryHandler,
     CommandHandler,
     ContextTypes,
+    Defaults,
     MessageHandler,
     filters,
 )
 
 from src.agent.core import OopsieAgent
+from src.notifications.reminder import send_due_soon_reminder
 from src.voice.transcriber import Transcriber
 
 logger = logging.getLogger(__name__)
@@ -90,6 +94,8 @@ def create_bot(
     bot_token: str,
     allowed_user_id: int,
     transcriber: Transcriber | None = None,
+    notion=None,
+    timezone: str = "UTC",
 ) -> Application:
     """Create and return the Telegram bot application."""
     logger.info("Creating Telegram bot for allowed_user_id=%s", allowed_user_id)
@@ -125,7 +131,7 @@ def create_bot(
 
         try:
             await update.message.chat.send_action(ChatAction.TYPING)
-            response = agent.process_message(text)
+            response = await agent.process_message(text)
             clean_text, space_names = _extract_space_select(response)
             markup = _build_space_keyboard(space_names) if space_names else None
             await _send_long_message(update, clean_text, reply_markup=markup)
@@ -146,7 +152,7 @@ def create_bot(
 
         try:
             await query.message.chat.send_action(ChatAction.TYPING)
-            response = agent.process_message(space_name)
+            response = await agent.process_message(space_name)
             clean_text, space_names = _extract_space_select(response)
             markup = _build_space_keyboard(space_names) if space_names else None
 
@@ -179,13 +185,13 @@ def create_bot(
             await tg_file.download_to_drive(tmp_path)
 
             await update.message.chat.send_action(ChatAction.TYPING)
-            text = transcriber.transcribe(tmp_path)
+            text = await transcriber.transcribe(tmp_path)
             if not text:
                 await update.message.reply_text("No pude entender el audio.")
                 return
 
             logger.info("Voice transcribed for user_id=%s: '%s'", user_id, text[:60])
-            response = agent.process_message(text)
+            response = await agent.process_message(text)
             clean_text, space_names = _extract_space_select(response)
             markup = _build_space_keyboard(space_names) if space_names else None
             await _send_long_message(update, clean_text, reply_markup=markup)
@@ -197,7 +203,8 @@ def create_bot(
             if tmp_path:
                 Path(tmp_path).unlink(missing_ok=True)
 
-    app = Application.builder().token(bot_token).build()
+    tz = pytz.timezone(timezone)
+    app = Application.builder().token(bot_token).defaults(Defaults(tzinfo=tz)).build()
 
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("reset", reset_command))
@@ -206,4 +213,17 @@ def create_bot(
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 
     logger.info("Telegram bot handlers registered successfully")
+
+    if notion is not None and app.job_queue is not None:
+        run_time = datetime.time(9, 0, 0)
+        app.job_queue.run_daily(
+            send_due_soon_reminder,
+            time=run_time,
+            data={"notion": notion, "user_id": allowed_user_id, "timezone": timezone},
+            name="due_soon_reminder",
+        )
+        logger.info("Scheduled due-soon reminder daily at 09:00 %s", timezone)
+    elif notion is not None:
+        logger.warning("APScheduler not available — due-soon reminder will not run. Install APScheduler.")
+
     return app
