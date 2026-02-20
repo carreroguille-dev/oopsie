@@ -144,6 +144,9 @@ class OopsieAgent:
         except Exception as e:
             logger.error("Failed to process message", exc_info=True)
             raise
+        finally:
+            if handler:
+                handler.flush()
 
     async def _trim_history(self, config: dict, messages: list) -> None:
         """Trim conversation history to the last MAX_HISTORY_MESSAGES.
