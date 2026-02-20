@@ -9,6 +9,7 @@ llm:
     top_p: 0.8
     top_k: 20
     repetition_penalty: 1.05
+    enable_thinking: false
 
 voice:
   model: "whisper-large-v3"

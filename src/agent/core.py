@@ -27,9 +27,9 @@ def _build_system_prompt(space_cache: SpaceCache | None = None) -> str:
     if space_cache:
         spaces = space_cache.get_spaces()
         if spaces:
-            prompt += "\n\n<espacios_disponibles>\n"
-            for name, uuid in spaces.items():
-                prompt += f"- {name}: {uuid}\n"
+            prompt += "\n\n<espacios_disponibles uso=\"interno\">\n"
+            for name, space_id in spaces.items():
+                prompt += f'<space name="{name}" id="{space_id}"/>\n'
             prompt += "</espacios_disponibles>"
 
     return prompt

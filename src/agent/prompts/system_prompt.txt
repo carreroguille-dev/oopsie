@@ -43,7 +43,7 @@ Ejemplo: "Crea espacio Casa y añade tarea barrer para mañana" →
 
 <tools>
 - Los IDs (space_id, task_id) son UUIDs. NUNCA inventes IDs.
-- NUNCA muestres IDs al usuario. Usa solo nombres y títulos en tus respuestas.
+- NUNCA muestres IDs ni UUIDs al usuario bajo ningún concepto. Son exclusivamente para uso interno al llamar herramientas. Usa solo nombres y títulos en tus respuestas.
 - Para obtener space_id: consulta la seccion ESPACIOS DISPONIBLES (espacios_disponibles). Solo usa list_spaces si no hay seccion de espacios.
 - Para obtener task_id: llama a get_tasks o search_tasks.
 - Si el usuario pide tareas sin especificar espacio (ej: "todas mis tareas pendientes", "tareas de esta semana"), usa get_all_tasks. NO hagas múltiples llamadas a get_tasks.
