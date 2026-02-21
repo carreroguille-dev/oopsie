@@ -1,16 +1,16 @@
 import logging
-import os
 
 from src.notion.client import NotionService
 from src.agent.tools.definitions import build_tools
 from src.agent.core import OopsieAgent
 from src.notion_cache.space_cache import SpaceCache
 from src.voice.transcriber import Transcriber
+from src.utils.config import AppConfig
 
 logger = logging.getLogger(__name__)
 
 
-def build_notion(config: dict) -> NotionService:
+def build_notion(config: AppConfig) -> NotionService:
     """Initialise the Notion service and verify space properties."""
     notion = NotionService(
         api_key=config["notion"]["api_key"],
@@ -41,7 +41,7 @@ def build_space_cache(notion: NotionService, ttl: int = 1800) -> SpaceCache:
     return cache
 
 
-def build_agent(config: dict, notion: NotionService, space_cache: SpaceCache) -> OopsieAgent:
+def build_agent(config: AppConfig, notion: NotionService, space_cache: SpaceCache) -> OopsieAgent:
     """Build and return the OopsieAgent with all tools wired up."""
     tools = build_tools(notion, space_cache)
     logger.info("Agent tools built (%d tools)", len(tools))
@@ -56,6 +56,7 @@ def build_agent(config: dict, notion: NotionService, space_cache: SpaceCache) ->
         tools=tools,
         space_cache=space_cache,
         model_kwargs=llm_cfg.get("model_kwargs", {}),
+        timezone=config.get("timezone", "Europe/Madrid"),
     )
     logger.info(
         "Agent initialised with model=%s, temperature=%.2f, max_tokens=%d",
@@ -66,16 +67,15 @@ def build_agent(config: dict, notion: NotionService, space_cache: SpaceCache) ->
     return agent
 
 
-def build_transcriber(config: dict) -> Transcriber | None:
+def build_transcriber(config: AppConfig) -> Transcriber | None:
     """Return a Transcriber if GROQ_API_KEY is available, otherwise None."""
-    groq_api_key = os.getenv("GROQ_API_KEY", "")
-    if not groq_api_key:
+    voice_cfg = config.get("voice", {})
+    if not voice_cfg.get("api_key"):
         logger.warning("GROQ_API_KEY not set — voice messages will not be transcribed")
         return None
 
-    voice_cfg = config.get("voice", {})
     transcriber = Transcriber(
-        api_key=groq_api_key,
+        api_key=voice_cfg["api_key"],
         base_url=voice_cfg["base_url"],
         model=voice_cfg["model"],
         language=voice_cfg["language"],

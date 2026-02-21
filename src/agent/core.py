@@ -3,6 +3,7 @@ import os
 import uuid
 from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from langchain_core.messages import AIMessage, HumanMessage, RemoveMessage, SystemMessage, ToolMessage
 from langchain_openai import ChatOpenAI
@@ -16,12 +17,15 @@ logger = logging.getLogger(__name__)
 MAX_HISTORY_MESSAGES = 10
 
 _PROMPT_PATH = Path(__file__).parent / "prompts" / "system_prompt.txt"
+_DAYS_ES = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
 
 
-def _build_system_prompt(space_cache: SpaceCache | None = None) -> str:
+def _build_system_prompt(space_cache: SpaceCache | None = None, timezone: str = "Europe/Madrid") -> str:
     """Load system prompt template, inject current date and cached spaces."""
     template = _PROMPT_PATH.read_text(encoding="utf-8")
-    today = datetime.now().strftime("%Y-%m-%d (%A)")
+    now = datetime.now(ZoneInfo(timezone))
+    day_name = _DAYS_ES[now.weekday()]
+    today = now.strftime(f"%d/%m/%Y ({day_name})")
     prompt = template.format(current_date=today)
 
     if space_cache:
@@ -39,11 +43,12 @@ class OopsieAgent:
     def __init__(self, model: str, api_key: str, base_url: str,
                  temperature: float, max_tokens: int, tools: list,
                  user_id: str = None, space_cache: SpaceCache | None = None,
-                 model_kwargs: dict | None = None):
+                 model_kwargs: dict | None = None, timezone: str = "UTC"):
         logger.info("Initializing OopsieAgent with model=%s, base_url=%s, temperature=%.2f, max_tokens=%d",
                    model, base_url, temperature, max_tokens)
 
         self._space_cache = space_cache
+        self._timezone = timezone
 
         extra = dict(model_kwargs or {})
         top_p = extra.pop("top_p", None)
@@ -62,7 +67,7 @@ class OopsieAgent:
             model=llm,
             tools=tools,
             checkpointer=MemorySaver(),
-            prompt=lambda state: [SystemMessage(content=_build_system_prompt(self._space_cache))] + state["messages"],
+            prompt=lambda state: [SystemMessage(content=_build_system_prompt(self._space_cache, self._timezone))] + state["messages"],
         )
 
         self._thread_id = str(uuid.uuid4())
@@ -146,7 +151,7 @@ class OopsieAgent:
             raise
         finally:
             if handler:
-                handler.flush()
+                handler.client.flush()
 
     async def _trim_history(self, config: dict, messages: list) -> None:
         """Trim conversation history to the last MAX_HISTORY_MESSAGES.

@@ -2,7 +2,7 @@
 
 import logging
 
-from src.utils.config import load_config
+from src.utils.config import load_config, AppConfig
 from src.interface.bot import create_bot
 from src.bootstrap import build_notion, build_space_cache, build_agent, build_transcriber
 
@@ -18,7 +18,7 @@ def main():
 
     logger.info("Starting Oopsie application")
 
-    config = load_config()
+    config: AppConfig = load_config()
     logger.info("Configuration loaded successfully")
 
     notion      = build_notion(config)
@@ -33,7 +33,7 @@ def main():
         tg_cfg["user_id"],
         transcriber=transcriber,
         notion=notion,
-        timezone=config.get("timezone", "UTC"),
+        timezone=config["timezone"],
     )
 
     logger.info("Telegram bot created for user_id=%s", tg_cfg["user_id"])

@@ -12,12 +12,18 @@ from src.notion.client import NotionService
 logger = logging.getLogger(__name__)
 
 
-def _safe(fn: Callable, *args, **kwargs) -> str:
-    """Run a function and return JSON result, or JSON error on failure."""
+def _safe(fn: Callable, *args, wrap_key: str | None = None, **kwargs) -> str:
+    """Run a function and return JSON result, or JSON error on failure.
+
+    Args:
+        fn: Function to call.
+        wrap_key: If provided, wraps the result as {wrap_key: result}.
+    """
     try:
         result = fn(*args, **kwargs)
         logger.debug("Tool %s executed successfully", fn.__name__)
-        return json.dumps(result, ensure_ascii=False)
+        payload = {wrap_key: result} if wrap_key else result
+        return json.dumps(payload, ensure_ascii=False)
     except Exception as e:
         logger.error("Tool %s failed: %s", fn.__name__, e, exc_info=True)
         return json.dumps({"error": str(e)}, ensure_ascii=False)
@@ -30,13 +36,7 @@ def build_tools(notion: NotionService, cache: SpaceCache) -> list:
     def list_spaces() -> str:
         """Lista todos los espacios. Devuelve {"spaces": [{"id", "name"}]}."""
         logger.info("Tool list_spaces called")
-        try:
-            spaces = notion.list_spaces()
-            logger.info("list_spaces returned %d space(s)", len(spaces))
-            return json.dumps({"spaces": spaces}, ensure_ascii=False)
-        except Exception as e:
-            logger.error("list_spaces failed: %s", e, exc_info=True)
-            return json.dumps({"error": str(e)}, ensure_ascii=False)
+        return _safe(notion.list_spaces, wrap_key="spaces")
 
     @tool
     def create_space(name: str, icon: str = "📁") -> str:
@@ -67,16 +67,10 @@ def build_tools(notion: NotionService, cache: SpaceCache) -> list:
         """
         logger.info("Tool get_tasks called with space_id=%s, status=%s, fecha_inicio=%s, fecha_fin=%s",
                    space_id[:8] + "...", status, fecha_inicio, fecha_fin)
-        try:
-            tasks = notion.get_tasks(
-                space_id=space_id, status=status,
-                fecha_inicio=fecha_inicio, fecha_fin=fecha_fin,
-            )
-            logger.info("get_tasks returned %d task(s)", len(tasks))
-            return json.dumps({"tasks": tasks}, ensure_ascii=False)
-        except Exception as e:
-            logger.error("get_tasks failed: %s", e, exc_info=True)
-            return json.dumps({"error": str(e)}, ensure_ascii=False)
+        return _safe(notion.get_tasks,
+                     space_id=space_id, status=status,
+                     fecha_inicio=fecha_inicio, fecha_fin=fecha_fin,
+                     wrap_key="tasks")
 
     @tool
     def create_task(space_id: str, title: str, due_date: str | None = None,
@@ -156,15 +150,9 @@ def build_tools(notion: NotionService, cache: SpaceCache) -> list:
         """
         logger.info("Tool get_all_tasks called with status=%s, fecha_inicio=%s, fecha_fin=%s",
                    status, fecha_inicio, fecha_fin)
-        try:
-            tasks = notion.get_all_tasks(
-                status=status, fecha_inicio=fecha_inicio, fecha_fin=fecha_fin,
-            )
-            logger.info("get_all_tasks returned %d task(s)", len(tasks))
-            return json.dumps({"tasks": tasks}, ensure_ascii=False)
-        except Exception as e:
-            logger.error("get_all_tasks failed: %s", e, exc_info=True)
-            return json.dumps({"error": str(e)}, ensure_ascii=False)
+        return _safe(notion.get_all_tasks,
+                     status=status, fecha_inicio=fecha_inicio, fecha_fin=fecha_fin,
+                     wrap_key="tasks")
 
     @tool
     def search_tasks(query: str) -> str:
@@ -174,13 +162,7 @@ def build_tools(notion: NotionService, cache: SpaceCache) -> list:
             query: Texto a buscar.
         """
         logger.info("Tool search_tasks called with query='%s'", query)
-        try:
-            tasks = notion.search_tasks(query)
-            logger.info("search_tasks returned %d result(s)", len(tasks))
-            return json.dumps({"tasks": tasks}, ensure_ascii=False)
-        except Exception as e:
-            logger.error("search_tasks failed: %s", e, exc_info=True)
-            return json.dumps({"error": str(e)}, ensure_ascii=False)
+        return _safe(notion.search_tasks, query, wrap_key="tasks")
 
     return [
         list_spaces, create_space, get_tasks, get_all_tasks, create_task,

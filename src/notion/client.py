@@ -67,6 +67,7 @@ class NotionService:
         """List all space databases under the root page."""
         logger.debug("Fetching spaces from root_page_id=%s", self.root_page_id[:8] + "...")
         try:
+            logger.debug("API call: GET blocks/%s/children", self.root_page_id)
             children = self.client.blocks.children.list(self.root_page_id)
             spaces = []
             for block in children["results"]:
@@ -78,7 +79,7 @@ class NotionService:
             logger.info("Found %d space(s)", len(spaces))
             return spaces
         except Exception as e:
-            logger.error("Failed to list spaces: %s", e, exc_info=True)
+            logger.error("Failed to list spaces (HTTP status=%s): %s", getattr(e, "status", None), e, exc_info=True)
             raise
 
     def create_space(self, name: str, icon: str = "📁") -> dict:
@@ -89,6 +90,7 @@ class NotionService:
         """
         logger.info("Creating space with name='%s', icon='%s'", name, icon)
         try:
+            logger.debug("API call: POST databases")
             db = self.client.request(
                 path="databases",
                 method="POST",
@@ -102,7 +104,7 @@ class NotionService:
             logger.info("Space created successfully with id=%s", db["id"][:8] + "...")
             return {"id": db["id"], "name": name}
         except Exception as e:
-            logger.error("Failed to create space '%s': %s", name, e, exc_info=True)
+            logger.error("Failed to create space '%s' (HTTP status=%s): %s", name, getattr(e, "status", None), e, exc_info=True)
             raise
 
     def ensure_space_properties(self, space_id: str) -> None:
@@ -114,6 +116,7 @@ class NotionService:
         """
         logger.debug("Ensuring properties for space_id=%s", space_id[:8] + "...")
         try:
+            logger.debug("API call: GET databases/%s", space_id)
             db = self.client.databases.retrieve(space_id)
             existing = db.get("properties", {})
             existing_names = set(existing.keys())
@@ -132,6 +135,7 @@ class NotionService:
 
             if updates:
                 logger.info("Updating %d missing properties for space_id=%s", len(updates), space_id[:8] + "...")
+                logger.debug("API call: PATCH databases/%s", space_id)
                 self.client.databases.update(
                     database_id=space_id, properties=updates
                 )
@@ -139,7 +143,7 @@ class NotionService:
             else:
                 logger.debug("All properties present for space_id=%s", space_id[:8] + "...")
         except Exception as e:
-            logger.error("Failed to ensure space properties: %s", e, exc_info=True)
+            logger.error("Failed to ensure space properties (HTTP status=%s): %s", getattr(e, "status", None), e, exc_info=True)
             raise
 
     # --- Tasks (entries in a space database) ---
@@ -182,6 +186,7 @@ class NotionService:
             elif len(filters) > 1:
                 body["filter"] = {"and": filters}
 
+            logger.debug("API call: POST databases/%s/query", space_id)
             response = self.client.request(
                 path=f"databases/{space_id}/query",
                 method="POST",
@@ -191,7 +196,7 @@ class NotionService:
             logger.info("Retrieved %d task(s) from space_id=%s", len(tasks), space_id[:8] + "...")
             return tasks
         except Exception as e:
-            logger.error("Failed to get tasks: %s", e, exc_info=True)
+            logger.error("Failed to get tasks (HTTP status=%s): %s", getattr(e, "status", None), e, exc_info=True)
             raise
 
     def create_task(self, space_id: str, title: str, due_date: str | None = None,
@@ -216,6 +221,7 @@ class NotionService:
             if url:
                 properties["Enlaces"] = {"url": url}
 
+            logger.debug("API call: POST pages")
             page = self.client.pages.create(
                 parent={"database_id": space_id},
                 properties=properties,
@@ -224,7 +230,7 @@ class NotionService:
             logger.info("Task created successfully with id=%s", task["id"][:8] + "...")
             return task
         except Exception as e:
-            logger.error("Failed to create task: %s", e, exc_info=True)
+            logger.error("Failed to create task (HTTP status=%s): %s", getattr(e, "status", None), e, exc_info=True)
             raise
 
     def update_task(self, task_id: str, **updates) -> dict:
@@ -248,23 +254,25 @@ class NotionService:
             if "url" in updates:
                 properties["Enlaces"] = {"url": updates["url"]}
 
+            logger.debug("API call: PATCH pages/%s", task_id)
             page = self.client.pages.update(page_id=task_id, properties=properties)
             task = self._parse_task(page)
             logger.info("Task updated successfully")
             return task
         except Exception as e:
-            logger.error("Failed to update task: %s", e, exc_info=True)
+            logger.error("Failed to update task (HTTP status=%s): %s", getattr(e, "status", None), e, exc_info=True)
             raise
 
     def delete_task(self, task_id: str) -> bool:
         """Archive (delete) a task."""
         logger.info("Deleting (archiving) task_id=%s", task_id[:8] + "...")
         try:
+            logger.debug("API call: PATCH pages/%s", task_id)
             self.client.pages.update(page_id=task_id, archived=True)
             logger.info("Task deleted successfully")
             return True
         except Exception as e:
-            logger.error("Failed to delete task: %s", e, exc_info=True)
+            logger.error("Failed to delete task (HTTP status=%s): %s", getattr(e, "status", None), e, exc_info=True)
             raise
 
     def get_all_tasks(self, status: str | None = None,
@@ -295,6 +303,7 @@ class NotionService:
         """Search tasks across all spaces."""
         logger.info("Searching tasks with query='%s'", query)
         try:
+            logger.debug("API call: POST search")
             response = self.client.search(
                 query=query,
                 filter={"property": "object", "value": "page"},
@@ -310,7 +319,7 @@ class NotionService:
             logger.info("Search returned %d task(s)", len(tasks))
             return tasks
         except Exception as e:
-            logger.error("Failed to search tasks: %s", e, exc_info=True)
+            logger.error("Failed to search tasks (HTTP status=%s): %s", getattr(e, "status", None), e, exc_info=True)
             raise
 
     # --- Helpers ---
