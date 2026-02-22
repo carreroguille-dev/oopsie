@@ -26,6 +26,7 @@ def create_bot(
     transcriber: Transcriber | None = None,
     notion=None,
     timezone: str = "UTC",
+    reminder_days_ahead: int = 1,
 ) -> Application:
     """Create and return the Telegram bot application."""
     logger.info("Creating Telegram bot for allowed_user_id=%s", allowed_user_id)
@@ -48,10 +49,12 @@ def create_bot(
         app.job_queue.run_daily(
             send_due_soon_reminder,
             time=run_time,
-            data={"notion": notion, "user_id": allowed_user_id, "timezone": timezone},
+            data={"notion": notion, "user_id": allowed_user_id, "timezone": timezone,
+                  "reminder_days_ahead": reminder_days_ahead},
             name="due_soon_reminder",
         )
-        logger.info("Scheduled due-soon reminder daily at 09:00 %s", timezone)
+        logger.info("Scheduled due-soon reminder daily at 09:00 %s (days_ahead=%d)",
+                    timezone, reminder_days_ahead)
     elif notion is not None:
         logger.warning("APScheduler not available — due-soon reminder will not run. Install APScheduler.")
 

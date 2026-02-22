@@ -5,18 +5,16 @@ import pytz
 
 logger = logging.getLogger(__name__)
 
-REMINDER_DAYS_AHEAD = 2
-
-
 async def send_due_soon_reminder(context) -> None:
-    """Job callback: fetch tasks due in REMINDER_DAYS_AHEAD days and send a Telegram reminder."""
+    """Job callback: fetch tasks due in reminder_days_ahead days and send a Telegram reminder."""
     data = context.job.data
     notion = data["notion"]
     user_id = data["user_id"]
     tz = pytz.timezone(data["timezone"])
+    reminder_days_ahead = data["reminder_days_ahead"]
 
     now = datetime.now(tz)
-    target_dt = now + timedelta(days=REMINDER_DAYS_AHEAD)
+    target_dt = now + timedelta(days=reminder_days_ahead)
     target_date = target_dt.strftime("%Y-%m-%d")
     target_display = target_dt.strftime("%d/%m/%Y")
 
@@ -34,7 +32,7 @@ async def send_due_soon_reminder(context) -> None:
         logger.info("No pending tasks due on %s — skipping reminder", target_date)
         return
 
-    lines = [f"⏰ Tareas con vencimiento en {REMINDER_DAYS_AHEAD} días ({target_display}):\n"]
+    lines = [f"⏰ Tareas con vencimiento en {reminder_days_ahead} días ({target_display}):\n"]
     for task in pending:
         space = task.get("space_name", "")
         priority = task.get("priority", "Media")

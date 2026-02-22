@@ -1,3 +1,4 @@
+import contextlib
 import logging
 import os
 import uuid
@@ -96,10 +97,10 @@ class OopsieAgent:
     def _get_langfuse_handler_class():
         """Return the CallbackHandler class, trying both import paths."""
         try:
-            from langfuse.callback import CallbackHandler
+            from langfuse.langchain import CallbackHandler  # v3 canonical path
             return CallbackHandler
         except ImportError:
-            from langfuse.langchain import CallbackHandler
+            from langfuse.callback import CallbackHandler  # v2 fallback
             return CallbackHandler
 
     def _create_langfuse_handler(self):
@@ -138,10 +139,16 @@ class OopsieAgent:
             logger.debug("Langfuse handler attached to request")
 
         try:
-            result = await self.graph.ainvoke(
-                {"messages": [("user", user_message)]},
-                config=config,
+            ctx = (
+                handler.client.start_as_current_span(name="oopsie-agent")
+                if handler
+                else contextlib.nullcontext()
             )
+            with ctx:
+                result = await self.graph.ainvoke(
+                    {"messages": [("user", user_message)]},
+                    config=config,
+                )
             response = self._extract_response(result["messages"])
             await self._trim_history(config, result["messages"])
             logger.info("Message processed successfully, response length=%d chars", len(response))

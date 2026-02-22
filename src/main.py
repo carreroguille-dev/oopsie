@@ -1,6 +1,5 @@
-"""Entry point for Oopsie."""
-
 import logging
+import os
 
 from src.utils.config import load_config, AppConfig
 from src.interface.bot import create_bot
@@ -21,6 +20,11 @@ def main():
     config: AppConfig = load_config()
     logger.info("Configuration loaded successfully")
 
+    lc_cfg = config.get("langchain", {})
+    if not lc_cfg.get("callbacks_background", True):
+        os.environ["LANGCHAIN_CALLBACKS_BACKGROUND"] = "false"
+        logger.info("LangChain callbacks set to foreground (callbacks_background=false)")
+
     notion      = build_notion(config)
     space_cache = build_space_cache(notion)
     agent       = build_agent(config, notion, space_cache)
@@ -34,6 +38,7 @@ def main():
         transcriber=transcriber,
         notion=notion,
         timezone=config["timezone"],
+        reminder_days_ahead=config["notifications"]["reminder_days_ahead"],
     )
 
     logger.info("Telegram bot created for user_id=%s", tg_cfg["user_id"])

@@ -17,3 +17,46 @@ voice:
   language: "es"
 
 timezone: "Europe/Madrid"
+
+notifications:
+  reminder_days_ahead: 1
+
+notion:
+  api_version: "2022-06-28"
+  task_db_properties:
+    Título:
+      title: {}
+    Fecha de vencimiento:
+      date: {}
+    Estado:
+      select:
+        options:
+          - name: "Pendiente"
+            color: "default"
+          - name: "En progreso"
+            color: "blue"
+          - name: "Completada"
+            color: "green"
+    Prioridad:
+      select:
+        options:
+          - name: "Baja"
+            color: "gray"
+          - name: "Media"
+            color: "yellow"
+          - name: "Alta"
+            color: "orange"
+          - name: "Urgente"
+            color: "red"
+    Etiquetas:
+      multi_select:
+        options: []
+    Fecha de finalización:
+      date: {}
+    Enlaces:
+      url: {}
+    Notas:
+      rich_text: {}
+
+langchain:
+  callbacks_background: false

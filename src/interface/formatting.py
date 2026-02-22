@@ -28,15 +28,8 @@ def _build_space_keyboard(space_names: list[str]) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(buttons)
 
 
-async def _send_long_message(
-    update: Update, text: str, reply_markup=None,
-) -> None:
-    """Send a message, splitting into chunks if it exceeds Telegram's limit.
-
-    Tries Markdown parse mode first; falls back to plain text if Telegram
-    rejects the markup (unmatched delimiters, unsupported syntax, etc.).
-    ``reply_markup`` is only attached to the **last** chunk.
-    """
+async def _send_long_message(update: Update, text: str, reply_markup=None) -> None:
+    """Send a message, splitting into chunks if it exceeds Telegram's limit."""
     if not text:
         if reply_markup:
             await update.message.reply_text("Elige un espacio:", reply_markup=reply_markup)

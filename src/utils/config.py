@@ -1,5 +1,3 @@
-"""Load configuration from YAML file and environment variables."""
-
 import logging
 import os
 from pathlib import Path
@@ -31,6 +29,12 @@ class VoiceConfig(TypedDict):
 class NotionConfig(TypedDict):
     api_key: str
     root_page_id: str
+    api_version: str
+    task_db_properties: dict
+
+
+class NotificationsConfig(TypedDict):
+    reminder_days_ahead: int
 
 
 class OpenRouterConfig(TypedDict):
@@ -48,6 +52,10 @@ class LangfuseConfig(TypedDict):
     host: str
 
 
+class LangchainConfig(TypedDict):
+    callbacks_background: bool
+
+
 class AppConfig(TypedDict):
     llm: LlmConfig
     voice: VoiceConfig
@@ -55,6 +63,8 @@ class AppConfig(TypedDict):
     openrouter: OpenRouterConfig
     telegram: TelegramConfig
     langfuse: LangfuseConfig
+    langchain: LangchainConfig
+    notifications: NotificationsConfig
     timezone: str
 
 
@@ -77,12 +87,14 @@ def load_config() -> AppConfig:
         logger.error("Failed to load YAML configuration from %s", config_path, exc_info=True)
         raise
 
-    # Inject env vars into config
     logger.debug("Injecting environment variables into config")
 
+    notion_yaml = config.get("notion", {})
     config["notion"] = NotionConfig(
         api_key=os.getenv("NOTION_API_KEY", ""),
         root_page_id=os.getenv("NOTION_ROOT_PAGE_ID", ""),
+        api_version=notion_yaml.get("api_version", "2022-06-28"),
+        task_db_properties=notion_yaml.get("task_db_properties", {}),
     )
     config["openrouter"] = OpenRouterConfig(
         api_key=os.getenv("OPENROUTER_API_KEY", ""),
@@ -99,7 +111,6 @@ def load_config() -> AppConfig:
     config.setdefault("voice", {})
     config["voice"]["api_key"] = os.getenv("GROQ_API_KEY", "")
 
-    # Validate critical env vars
     missing_vars = []
     if not config["notion"]["api_key"]:
         missing_vars.append("NOTION_API_KEY")

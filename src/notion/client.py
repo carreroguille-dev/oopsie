@@ -6,36 +6,6 @@ from notion_client import Client
 
 logger = logging.getLogger(__name__)
 
-NOTION_API_VERSION = "2022-06-28"
-
-TASK_DB_PROPERTIES = {
-    "Título": {"title": {}},
-    "Fecha de vencimiento": {"date": {}},
-    "Estado": {
-        "select": {
-            "options": [
-                {"name": "Pendiente", "color": "default"},
-                {"name": "En progreso", "color": "blue"},
-                {"name": "Completada", "color": "green"},
-            ]
-        }
-    },
-    "Prioridad": {
-        "select": {
-            "options": [
-                {"name": "Baja", "color": "gray"},
-                {"name": "Media", "color": "yellow"},
-                {"name": "Alta", "color": "orange"},
-                {"name": "Urgente", "color": "red"},
-            ]
-        }
-    },
-    "Etiquetas": {"multi_select": {"options": []}},
-    "Fecha de finalización": {"date": {}},
-    "Enlaces": {"url": {}},
-    "Notas": {"rich_text": {}},
-}
-
 
 def _validate_date(date_str: str) -> str:
     """Validate and fix a YYYY-MM-DD date string. Clamps invalid days to the last valid day of the month."""
@@ -54,14 +24,14 @@ def _validate_date(date_str: str) -> str:
 
 
 class NotionService:
-    def __init__(self, api_key: str, root_page_id: str):
+    def __init__(self, api_key: str, root_page_id: str,
+                 api_version: str = "2022-06-28", task_db_properties: dict | None = None):
         logger.info("Initializing NotionService with root_page_id=%s, api_version=%s",
-                   root_page_id[:8] + "...", NOTION_API_VERSION)
-        self.client = Client(auth=api_key, notion_version=NOTION_API_VERSION)
+                   root_page_id[:8] + "...", api_version)
+        self.client = Client(auth=api_key, notion_version=api_version)
         self.root_page_id = root_page_id
+        self._task_db_properties = task_db_properties or {}
         logger.info("NotionService initialized successfully")
-
-    # --- Spaces (each space = a database under the root page) ---
 
     def list_spaces(self) -> list[dict]:
         """List all space databases under the root page."""
@@ -84,7 +54,6 @@ class NotionService:
 
     def create_space(self, name: str, icon: str = "📁") -> dict:
         """Create a new space (database with task schema) under the root page.
-
         Uses client.request() because the high-level databases.create()
         strips the properties kwarg from the request body.
         """
@@ -98,7 +67,7 @@ class NotionService:
                     "parent": {"type": "page_id", "page_id": self.root_page_id},
                     "title": [{"type": "text", "text": {"content": name}}],
                     "icon": {"type": "emoji", "emoji": icon},
-                    "properties": TASK_DB_PROPERTIES,
+                    "properties": self._task_db_properties,
                 },
             )
             logger.info("Space created successfully with id=%s", db["id"][:8] + "...")
@@ -108,12 +77,7 @@ class NotionService:
             raise
 
     def ensure_space_properties(self, space_id: str) -> None:
-        """Ensure a database has all required task properties.
-
-        Fixes databases that were created under the broken 2025-09-03 API
-        which silently ignored properties. Also renames the default 'Name'
-        title property to 'Título' if needed.
-        """
+        """Ensure a database has all required task properties."""
         logger.debug("Ensuring properties for space_id=%s", space_id[:8] + "...")
         try:
             logger.debug("API call: GET databases/%s", space_id)
@@ -123,13 +87,10 @@ class NotionService:
 
             updates = {}
 
-            # Rename default "Name" title property to "Título"
             if "Name" in existing_names and "Título" not in existing_names:
                 updates["Name"] = {"name": "Título", "title": {}}
                 logger.info("Renaming 'Name' property to 'Título' for space_id=%s", space_id[:8] + "...")
-
-            # Add all other missing non-title properties
-            for prop_name, prop_schema in TASK_DB_PROPERTIES.items():
+            for prop_name, prop_schema in self._task_db_properties.items():
                 if prop_name not in existing_names and prop_name != "Título":
                     updates[prop_name] = prop_schema
 
@@ -146,15 +107,10 @@ class NotionService:
             logger.error("Failed to ensure space properties (HTTP status=%s): %s", getattr(e, "status", None), e, exc_info=True)
             raise
 
-    # --- Tasks (entries in a space database) ---
-
     def get_tasks(self, space_id: str, status: str | None = None,
                   fecha_inicio: str | None = None,
                   fecha_fin: str | None = None) -> list[dict]:
         """Get tasks from a space, optionally filtered by status and/or date range.
-
-        Uses client.request() because databases.query() doesn't exist in
-        notion-client 2.7.0.
 
         Args:
             space_id: Database UUID.
@@ -321,8 +277,6 @@ class NotionService:
         except Exception as e:
             logger.error("Failed to search tasks (HTTP status=%s): %s", getattr(e, "status", None), e, exc_info=True)
             raise
-
-    # --- Helpers ---
 
     def _parse_task(self, page: dict) -> dict:
         """Extract clean task dict from a Notion page object."""

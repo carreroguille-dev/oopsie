@@ -15,6 +15,8 @@ def build_notion(config: AppConfig) -> NotionService:
     notion = NotionService(
         api_key=config["notion"]["api_key"],
         root_page_id=config["notion"]["root_page_id"],
+        api_version=config["notion"]["api_version"],
+        task_db_properties=config["notion"]["task_db_properties"],
     )
     logger.info(
         "Notion service initialised with root_page_id=%s",
