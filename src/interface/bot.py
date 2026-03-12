@@ -2,6 +2,7 @@ import datetime
 import logging
 
 import pytz
+from telegram.error import NetworkError
 from telegram.ext import (
     Application,
     CallbackQueryHandler,
@@ -10,6 +11,7 @@ from telegram.ext import (
     MessageHandler,
     filters,
 )
+from telegram.request import HTTPXRequest
 
 from src.agent.core import OopsieAgent
 from src.interface.handlers import Handlers
@@ -17,6 +19,13 @@ from src.notifications.reminder import send_due_soon_reminder
 from src.voice.transcriber import Transcriber
 
 logger = logging.getLogger(__name__)
+
+
+async def _error_handler(update, context) -> None:
+    if isinstance(context.error, NetworkError):
+        logger.warning("Transient network error (will retry): %s", context.error)
+        return
+    logger.error("Unhandled error", exc_info=context.error)
 
 
 def create_bot(
@@ -34,7 +43,24 @@ def create_bot(
     handlers = Handlers(agent, allowed_user_id, transcriber)
 
     tz = pytz.timezone(timezone)
-    app = Application.builder().token(bot_token).defaults(Defaults(tzinfo=tz)).build()
+    app = (
+        Application.builder()
+        .token(bot_token)
+        .defaults(Defaults(tzinfo=tz))
+        .request(HTTPXRequest(
+            connect_timeout=20.0,
+            read_timeout=30.0,
+            write_timeout=30.0,
+            pool_timeout=30.0,
+        ))
+        .get_updates_request(HTTPXRequest(
+            connect_timeout=20.0,
+            read_timeout=60.0,
+        ))
+        .build()
+    )
+
+    app.add_error_handler(_error_handler)
 
     app.add_handler(CommandHandler("start", handlers.start_command))
     app.add_handler(CommandHandler("reset", handlers.reset_command))
