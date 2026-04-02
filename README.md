@@ -1,6 +1,24 @@
-# Oopsie
+<div align="center">
 
-Asistente personal de gestión de tareas con IA que funciona a través de Telegram y almacena las tareas en Notion. Entiende lenguaje natural en español, procesa mensajes de voz y envía recordatorios diarios de tareas próximas.
+  <img src="docs/oopsie-icon-no-bg.png" alt="Logo Oopsie" width="250"/>
+
+  <h1>Oopsie</h1>
+  <h3>Asistente personal de gestión de tareas con IA</h3>
+  
+  <p>Entiende lenguaje natural en español, procesa mensajes de voz por Telegram y organiza tu vida en Notion mediante un agente ReAct.</p>
+
+  <p>
+    <img src="https://img.shields.io/badge/Python-3.11-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python 3.11" />
+    <img src="https://img.shields.io/badge/Telegram-Bot-2CA5E0?style=flat-square&logo=telegram&logoColor=white" alt="Telegram Bot" />
+    <img src="https://img.shields.io/badge/Notion-API-000000?style=flat-square&logo=notion&logoColor=white" alt="Notion API" />
+    <img src="https://img.shields.io/badge/LangGraph-ReAct-1C3C3C?style=flat-square&logo=langchain&logoColor=white" alt="LangGraph" />
+    <img src="https://img.shields.io/badge/Groq-Whisper_STT-F55036?style=flat-square" alt="Groq Whisper" />
+    <img src="https://img.shields.io/badge/Docker-Compose-2496ED?style=flat-square&logo=docker&logoColor=white" alt="Docker Compose" />
+  </p>
+
+</div>
+
+---
 
 ## Funcionalidades
 
