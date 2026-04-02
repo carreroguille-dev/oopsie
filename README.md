@@ -1,6 +1,6 @@
 <div align="center">
 
-  <img src="docs/oopsie-icon-no-bg.png" alt="Logo Oopsie" width="250"/>
+  <img src="oopsie-icon-no-bg.png" alt="Logo Oopsie" width="250"/>
 
   <h1>Oopsie</h1>
   <h3>Asistente personal de gestión de tareas con IA</h3>
